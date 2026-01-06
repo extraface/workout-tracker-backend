@@ -105,10 +105,10 @@ app.post('/sheets/create', requireAuth, async (req, res) => {
     // Add headers
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'Workouts!A1:E1',
+      range: 'Workouts!A1:F1',
       valueInputOption: 'RAW',
       resource: {
-        values: [['Date', 'Workout', 'Exercise', 'Reps', 'Weight']]
+        values: [['Date', 'Workout', 'Exercise', 'Reps', 'Weight', 'Unit']]
       }
     });
     
@@ -130,7 +130,7 @@ app.get('/sheets/:spreadsheetId/data', requireAuth, async (req, res) => {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Workouts!A2:E'
+      range: 'Workouts!A2:F'
     });
     
     const rows = response.data.values || [];
@@ -139,7 +139,8 @@ app.get('/sheets/:spreadsheetId/data', requireAuth, async (req, res) => {
       workout: row[1],
       exercise: row[2],
       reps: parseInt(row[3]),
-      weight: parseFloat(row[4])
+      weight: parseFloat(row[4]),
+      unit: row[5] || 'lbs'
     }));
     
     res.json({ workouts });
@@ -153,16 +154,16 @@ app.get('/sheets/:spreadsheetId/data', requireAuth, async (req, res) => {
 app.post('/sheets/:spreadsheetId/entry', requireAuth, async (req, res) => {
   try {
     const { spreadsheetId } = req.params;
-    const { date, workout, exercise, reps, weight } = req.body;
+    const { date, workout, exercise, reps, weight, unit } = req.body;
     
     const sheets = google.sheets({ version: 'v4', auth: req.googleAuth });
     
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Workouts!A:E',
+      range: 'Workouts!A:F',
       valueInputOption: 'RAW',
       resource: {
-        values: [[date, workout, exercise, reps, weight]]
+        values: [[date, workout, exercise, reps, weight, unit || 'lbs']]
       }
     });
     
