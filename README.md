@@ -7,6 +7,7 @@ A seamless workout tracking app that syncs automatically to Google Sheets. Built
 - 📊 **Real-time Google Sheets sync** - Every set automatically saved to your spreadsheet
 - 🧠 **Smart weight input** - Natural language parsing for weights, bands, and bodyweight
 - 💪 **Per-exercise memory** - Remembers your weights/bands within each workout session
+- 🎯 **Smart workout suggestion** - Automatically suggests which workout (A or B) is next based on your alternating pattern
 - 📱 **Mobile-first design** - Optimized for quick logging on your phone
 - 📈 **Progress tracking** - Built-in analysis with rep progression and volume charts
 - 💬 **Claude AI chat** - Get encouragement and advice during workouts
@@ -175,6 +176,36 @@ This confirms what will be used if you leave the field blank.
 - Helps you track your progress through the workout
 
 ### Session Management
+
+#### Smart Workout Suggestion (NEW in v1.2)
+
+The app automatically suggests which workout (A or B) you should do next based on your alternating pattern.
+
+**How it works:**
+- Tracks your last completed workout (A or B)
+- Suggests the opposite workout when you open the app
+- Shows "🎯 Next" badge on the suggested workout
+- Displays "Up next: Workout B" text above the buttons
+- Auto-highlights the suggested workout with a green border
+
+**Visual indicator:**
+```
+Last workout: Workout A (Yesterday)
+💪 Up next: Workout B
+
+[Workout A]  [Workout B 🎯 Next] ← highlighted
+```
+
+**Perfect for alternating schedules:**
+- Works great if you strictly alternate A/B
+- Handles rest days automatically (only tracks actual workouts)
+- Ignores non-logged activities (runs, gyrotonic, etc.)
+- Updates after you click "Finish Workout"
+
+**Easy override:**
+- Just click the other workout button if the suggestion is wrong
+- No extra steps required
+- Selection persists if you close and reopen the app
 
 #### Finish Workout Button
 - Appears at the bottom of your exercise list
@@ -491,6 +522,13 @@ Log each exercise separately as you complete it. The app shows:
 
 ## Version History
 
+**v1.2** (January 2026)
+- Added smart workout suggestion feature (automatically suggests A or B based on alternating pattern)
+- Added visual "🎯 Next" badge on suggested workout
+- Added "Up next" text display showing which workout is recommended
+- Improved workout selection UI with suggestion highlighting
+- Recalculates suggestion after finishing workout
+
 **v1.1** (January 2026)
 - Added visual progress indicators (grayed out completed exercises, highlighted current exercise)
 - Added set counter badges showing X/3 sets
@@ -536,6 +574,6 @@ Built with:
 
 ---
 
-**Current Version:** v1.1  
+**Current Version:** v1.2  
 **Last Updated:** January 2026  
 **Deployed at:** https://dcworkouts.netlify.app
