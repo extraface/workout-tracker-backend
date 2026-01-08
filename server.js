@@ -174,6 +174,60 @@ app.post('/sheets/:spreadsheetId/entry', requireAuth, async (req, res) => {
   }
 });
 
+// Claude chat endpoint
+app.post('/chat', requireAuth, async (req, res) => {
+  try {
+    const { messages } = req.body;
+    
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Messages array required' });
+    }
+    
+    // Check if API key is configured
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(500).json({ 
+        error: 'Anthropic API key not configured',
+        message: 'Please add ANTHROPIC_API_KEY to Railway environment variables'
+      });
+    }
+    
+    // Call Anthropic API
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: messages,
+        system: 'You are a helpful, encouraging fitness assistant. Provide brief, motivating responses. Keep answers concise and supportive.'
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Anthropic API error:', errorText);
+      return res.status(response.status).json({ 
+        error: 'Failed to get response from Claude',
+        details: errorText
+      });
+    }
+    
+    const data = await response.json();
+    res.json(data);
+    
+  } catch (error) {
+    console.error('Chat error:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
+  }
+});
+
 // Check session validity
 app.get('/auth/check', (req, res) => {
   const sessionId = req.headers['x-session-id'];
