@@ -62,21 +62,42 @@ The weight input understands natural language and makes intelligent assumptions 
 
 ### Doubled Weight Exercises
 
-Some exercises use two dumbbells/kettlebells and need special tracking:
-- Flat Bench Press
-- Incline Bench Press
-- Shoulder Press
-- Dumbbell Press
+Some exercises use two dumbbells/kettlebells and need special tracking. Simply add a **star (*)** at the end of the exercise name in your workout configuration!
 
-For these exercises, enter weights as `2x25` instead of `50` to preserve the detail that you're using two 25lb dumbbells.
+**How to mark doubled weight exercises:**
+1. Go to **Settings** tab
+2. Add a star at the end of exercise names that use two weights
+3. Example: `Flat Bench Press*`
 
-**Example:**
+**Example Configuration:**
 ```
-Exercise: Flat Bench Press
+Workout A:
+Goblet Squats
+Band Pullaparts
+Kettlebell RDLs
+Flat Bench Press*          ← Star indicates doubled weight
+Front & Side Shoulder Raises
+```
+
+**What happens:**
+- The star is hidden from the display (you'll see "Flat Bench Press" not "Flat Bench Press*")
+- Weight input placeholder shows: `2x25 or 2x25 lb`
+- Hint text shows: `Ex: 2x25, 2x25 lb, 2x15 kg`
+- Data stores as `2x25 lbs` to preserve that you're using two 25lb dumbbells
+
+**For these exercises, enter weights as:**
+```
+Exercise: Flat Bench Press*
 Set 1: Reps: 10, Weight: 2x25        → Logs: 10 reps × 2x25 lbs
 Set 2: Reps: 8,  Weight: 2x30        → Logs: 8 reps × 2x30 lbs
 Set 3: Reps: 8,  Weight: (blank)     → Logs: 8 reps × 2x30 lbs  ✨ copies from Set 2
 ```
+
+**Default doubled weight exercises:**
+- Flat Bench Press*
+
+**Add your own:**
+Just add a star to any exercise name in Settings!
 
 ### Smart Defaults (Within a Session)
 
@@ -183,17 +204,15 @@ This confirms what will be used if you leave the field blank.
 Made a mistake? Quickly undo your last logged set!
 
 **How it works:**
-- After logging a set, an "↶ Undo Last Set" button appears in the bottom-right corner
-- Click it within 10 seconds to remove the last set
-- The button auto-disappears after 10 seconds
-- Shows confirmation message when set is removed
+- After logging a set, an "↶ Undo Last Set" button appears right below the Log button
+- Shows up in the same exercise where you just logged
+- Click it to remove the last set
+- Button disappears after you log another set or move to a different exercise
 
 **What it does:**
 - Removes the set from your local workout log
 - Updates the display immediately
-- Shows confirmation: "✓ Set removed"
-
-**Note:** The undo removes the set from localStorage and your display, but the Google Sheets entry remains (you can manually delete it from the sheet if needed, or it will be invisible once you have more data).
+- Easy to find - right where you were working
 
 **When it's useful:**
 - Accidentally logged the wrong exercise
@@ -286,29 +305,8 @@ The chat is configured to give brief, encouraging responses perfect for quick re
 1. Go to **Settings** tab
 2. Edit **Workout A Exercises** or **Workout B Exercises**
 3. One exercise per line
-4. Click **Save Configuration**
-
-### Adding Doubled Weight Exercises
-To add an exercise that uses doubled weights (like dumbbells):
-1. Add it to your workout configuration normally (in Settings)
-2. Open `index.html` in a text editor
-3. Find the `DOUBLED_WEIGHT_EXERCISES` array (around line 901)
-4. Add your exercise name **exactly** as it appears in your workout list
-5. Save and redeploy
-
-**Example:**
-```javascript
-// TO ADD MORE: Add exercise name here exactly as it appears in your workout configuration
-const DOUBLED_WEIGHT_EXERCISES = [
-    'Flat Bench Press',
-    'Incline Bench Press',
-    'Shoulder Press',
-    'Dumbbell Press',
-    'Your New Exercise Name'  // Add here
-];
-```
-
-**Important:** The name must match exactly (including capitalization and spacing).
+4. Add a **star (*)** at the end for doubled weight exercises (e.g., `Flat Bench Press*`)
+5. Click **Save Configuration**
 
 ### Default Workouts
 
@@ -316,7 +314,7 @@ const DOUBLED_WEIGHT_EXERCISES = [
 - Goblet Squats
 - Band Pullaparts
 - Kettlebell RDLs
-- Flat Bench Press *(supports doubled weight)*
+- Flat Bench Press* *(doubled weight - uses 2x format)*
 - Front & Side Shoulder Raises
 - Incline or Cable Fly
 - Calf Raises
@@ -592,6 +590,17 @@ Log each exercise separately as you complete it. The app shows:
 
 ## Version History
 
+**v1.4.1** (January 2026)
+- Fixed: Stars are now properly stripped from exercise names before storing in database
+- Exercise names in Google Sheets will not contain the * marker
+- Ensures clean data for analysis and tracking
+
+**v1.4** (January 2026)
+- Changed doubled weight detection to star-based system (add * to exercise name in config)
+- Moved undo button to inline position (appears right below Log button in the same exercise)
+- Simplified configuration - no need to edit code for doubled weight exercises
+- Star is automatically hidden from display names
+
 **v1.3.1** (January 2026)
 - Added smart analysis grouping that strips parenthetical hints from exercise names
 - Now "Face Pulls (10 lb)" and "Face Pulls (20 lb)" are analyzed together
@@ -656,6 +665,6 @@ Built with:
 
 ---
 
-**Current Version:** v1.3.1  
+**Current Version:** v1.4.1  
 **Last Updated:** January 2026  
 **Deployed at:** https://dcworkouts.netlify.app
