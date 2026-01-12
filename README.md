@@ -8,6 +8,7 @@ A seamless workout tracking app that syncs automatically to Google Sheets. Built
 - 🧠 **Smart weight input** - Natural language parsing for weights, bands, and bodyweight
 - 💪 **Per-exercise memory** - Remembers your weights/bands within each workout session
 - 🎯 **Smart workout suggestion** - Automatically suggests which workout (A or B) is next based on your alternating pattern
+- ↶ **Undo button** - Quick undo for the last logged set (appears for 10 seconds)
 - 📱 **Mobile-first design** - Optimized for quick logging on your phone
 - 📈 **Progress tracking** - Built-in analysis with rep progression and volume charts
 - 💬 **Claude AI chat** - Get encouragement and advice during workouts
@@ -177,6 +178,29 @@ This confirms what will be used if you leave the field blank.
 
 ### Session Management
 
+#### Undo Button (NEW in v1.3)
+
+Made a mistake? Quickly undo your last logged set!
+
+**How it works:**
+- After logging a set, an "↶ Undo Last Set" button appears in the bottom-right corner
+- Click it within 10 seconds to remove the last set
+- The button auto-disappears after 10 seconds
+- Shows confirmation message when set is removed
+
+**What it does:**
+- Removes the set from your local workout log
+- Updates the display immediately
+- Shows confirmation: "✓ Set removed"
+
+**Note:** The undo removes the set from localStorage and your display, but the Google Sheets entry remains (you can manually delete it from the sheet if needed, or it will be invisible once you have more data).
+
+**When it's useful:**
+- Accidentally logged the wrong exercise
+- Typo in reps or weight
+- Double-clicked the Log button
+- Changed your mind about a set
+
 #### Smart Workout Suggestion (NEW in v1.2)
 
 The app automatically suggests which workout (A or B) you should do next based on your alternating pattern.
@@ -266,9 +290,25 @@ The chat is configured to give brief, encouraging responses perfect for quick re
 
 ### Adding Doubled Weight Exercises
 To add an exercise that uses doubled weights (like dumbbells):
-1. Add it to your workout configuration normally
-2. Edit the `DOUBLED_WEIGHT_EXERCISES` array in index.html (line ~983)
-3. Redeploy
+1. Add it to your workout configuration normally (in Settings)
+2. Open `index.html` in a text editor
+3. Find the `DOUBLED_WEIGHT_EXERCISES` array (around line 901)
+4. Add your exercise name **exactly** as it appears in your workout list
+5. Save and redeploy
+
+**Example:**
+```javascript
+// TO ADD MORE: Add exercise name here exactly as it appears in your workout configuration
+const DOUBLED_WEIGHT_EXERCISES = [
+    'Flat Bench Press',
+    'Incline Bench Press',
+    'Shoulder Press',
+    'Dumbbell Press',
+    'Your New Exercise Name'  // Add here
+];
+```
+
+**Important:** The name must match exactly (including capitalization and spacing).
 
 ### Default Workouts
 
@@ -383,6 +423,36 @@ Your Google Sheet has these columns:
 - Highest volume workout highlighted
 
 ## Tips & Best Practices
+
+### Using Parenthetical Hints in Exercise Names
+
+You can add hints to exercise names to remind yourself of your current progression level!
+
+**Example:**
+```
+Face Pulls (10 lb)
+Face Pulls (20 lb)
+Goblet Squats (30 kg)
+```
+
+**How it works:**
+- Add your hint in parentheses anywhere in the exercise name
+- The hint shows up in your workout list (helpful reminder!)
+- Analysis automatically groups all variations together
+- "Face Pulls (10 lb)" and "Face Pulls (20 lb)" → analyzed as "Face Pulls"
+
+**When to use:**
+- Track your current working weight: `Curls (18 lb DBs)`
+- Note equipment: `Shoulder Press (Purple Band)`
+- Remember rep ranges: `Push-ups (15-12-10)`
+- Track progression: `Bench Press (2x25 lb)` → `Bench Press (2x30 lb)`
+
+**The analysis is smart:**
+- Strips parentheses when grouping data
+- Shows combined history for all variations
+- Your detailed exercise names are preserved in the data
+
+This is perfect for exercises where you're gradually increasing weight!
 
 ### For Fastest Logging
 
@@ -522,6 +592,18 @@ Log each exercise separately as you complete it. The app shows:
 
 ## Version History
 
+**v1.3.1** (January 2026)
+- Added smart analysis grouping that strips parenthetical hints from exercise names
+- Now "Face Pulls (10 lb)" and "Face Pulls (20 lb)" are analyzed together
+- Exercise names with hints still display correctly in workout lists
+- Analysis dropdown shows all logged exercises including variants
+
+**v1.3** (January 2026)
+- Added undo button for last logged set (10-second window)
+- Fixed timezone bug on workout selection page
+- Added clear documentation for editing doubled weight exercises list
+- Improved date calculations to use local timezone consistently
+
 **v1.2** (January 2026)
 - Added smart workout suggestion feature (automatically suggests A or B based on alternating pattern)
 - Added visual "🎯 Next" badge on suggested workout
@@ -574,6 +656,6 @@ Built with:
 
 ---
 
-**Current Version:** v1.2  
+**Current Version:** v1.3.1  
 **Last Updated:** January 2026  
 **Deployed at:** https://dcworkouts.netlify.app
