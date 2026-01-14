@@ -7,13 +7,11 @@ A seamless workout tracking app that syncs automatically to Google Sheets. Built
 - 📊 **Real-time Google Sheets sync** - Every set automatically saved to your spreadsheet
 - 🧠 **Smart weight input** - Natural language parsing for weights, bands, and bodyweight
 - 💪 **Per-exercise memory** - Remembers your weights/bands within each workout session
-- 🎯 **Smart workout suggestion** - Automatically suggests which workout (A or B) is next based on your alternating pattern
-- ↶ **Undo button** - Quick undo for the last logged set (appears for 10 seconds)
+- 🎯 **Smart workout suggestion** - Automatically recommends which workout (A or B) to do next
 - 📱 **Mobile-first design** - Optimized for quick logging on your phone
 - 📈 **Progress tracking** - Built-in analysis with rep progression and volume charts
-- 💬 **Claude AI chat** - Get encouragement and advice during workouts
-- 👁️ **Visual progress indicators** - See completed exercises and current exercise at a glance
-- 🔢 **Doubled weight support** - Track exercises using two dumbbells (e.g., 2x25 lb)
+- 🔄 **Reload from Sheet** - Sync your data from Google Sheets when needed
+- 🔢 **Doubled weight support** - Handles "2 x 25 lb" and "25 lb x 2" formats
 - 🔒 **Your data, your control** - Everything stored in your own Google Sheet
 
 ## Quick Start
@@ -23,13 +21,9 @@ A seamless workout tracking app that syncs automatically to Google Sheets. Built
 - Railway account (free tier)
 - Netlify account (free tier)
 - GitHub account
-- Anthropic API account (for chat feature, optional)
 
 ### Setup (15-20 minutes)
-1. Deploy backend to Railway
-2. Deploy frontend to Netlify
-3. Configure Google OAuth credentials
-4. (Optional) Add Anthropic API key for chat
+Follow the detailed instructions in `SETUP_GUIDE.md`
 
 ## Smart Weight Input Guide
 
@@ -51,53 +45,13 @@ The weight input understands natural language and makes intelligent assumptions 
 | `n/a` | Not tracked | Also works |
 | `red` | Red Band | Band resistance |
 | `red band` | Red Band | Also works |
-| `blue` | Blue Band | Fixed in v1.1! |
+| `blue` | Blue Band | |
 | `purple` | Purple Band | |
-| `2x25` | 2x25 lbs | Doubled weight (for dumbbells) |
-| `2x25 lb` | 2x25 lbs | Explicit doubled weight |
-| `2 x 15 kg` | 2x15 kg | Spaces supported |
+| `2 x 25 lb` | 2×25 lbs | Doubled weight - displays as "@ 2×25 lbs" |
+| `25 lb x 2` | 2×25 lbs | Also works! |
 
 ### Supported Band Colors
-- Red, Blue, Black, Green, Purple
-
-### Doubled Weight Exercises
-
-Some exercises use two dumbbells/kettlebells and need special tracking. Simply add a **star (*)** at the end of the exercise name in your workout configuration!
-
-**How to mark doubled weight exercises:**
-1. Go to **Settings** tab
-2. Add a star at the end of exercise names that use two weights
-3. Example: `Flat Bench Press*`
-
-**Example Configuration:**
-```
-Workout A:
-Goblet Squats
-Band Pullaparts
-Kettlebell RDLs
-Flat Bench Press*          ← Star indicates doubled weight
-Front & Side Shoulder Raises
-```
-
-**What happens:**
-- The star is hidden from the display (you'll see "Flat Bench Press" not "Flat Bench Press*")
-- Weight input placeholder shows: `2x25 or 2x25 lb`
-- Hint text shows: `Ex: 2x25, 2x25 lb, 2x15 kg`
-- Data stores as `2x25 lbs` to preserve that you're using two 25lb dumbbells
-
-**For these exercises, enter weights as:**
-```
-Exercise: Flat Bench Press*
-Set 1: Reps: 10, Weight: 2x25        → Logs: 10 reps × 2x25 lbs
-Set 2: Reps: 8,  Weight: 2x30        → Logs: 8 reps × 2x30 lbs
-Set 3: Reps: 8,  Weight: (blank)     → Logs: 8 reps × 2x30 lbs  ✨ copies from Set 2
-```
-
-**Default doubled weight exercises:**
-- Flat Bench Press*
-
-**Add your own:**
-Just add a star to any exercise name in Settings!
+- Red, Blue, Black, Green, Purple, Yellow, Orange
 
 ### Smart Defaults (Within a Session)
 
@@ -135,7 +89,7 @@ Exercise: Band Pullaparts
 Set 1: Reps: 15, Weight: red       → Logs: 15 reps (Red Band)
 Set 2: Reps: 15, Weight: (blank)   → Logs: 15 reps (Red Band)  ✨ copies from Set 1
 Set 3: Reps: 12, Weight: (blank)   → Logs: 12 reps (Red Band)  ✨ copies from Set 1
-Set 4: Reps: 15, Weight: blue      → Logs: 15 reps (Blue Band)  ✨ switches band
+Set 4: Reps: 15, Weight: purple    → Logs: 15 reps (Purple Band)  ✨ switches band
 ```
 
 #### Scenario 4: Mixed Units in Same Workout
@@ -144,7 +98,7 @@ Exercise: Goblet Squats
 Set 1: 10 reps, 30 kg              → Logs: 10 reps × 30 kg
 
 Exercise: Flat Bench Press (different exercise)
-Set 1: 8 reps, 2x25                → Logs: 8 reps × 2x25 lbs  ✨ independent memory
+Set 1: 8 reps, 135                 → Logs: 8 reps × 135 lbs  ✨ independent memory
 ```
 
 **Key behavior:**
@@ -157,7 +111,6 @@ Set 1: 8 reps, 2x25                → Logs: 8 reps × 2x25 lbs  ✨ independent
 As you type, gray text appears showing what will be added:
 - Type `25` → see gray ` lbs` after it
 - Type `25 k` → see gray `g` completing to `kg`
-- Type `2x25` → see gray ` lbs` after it
 - Colors and complete words show no ghost text
 
 #### Smart Placeholder
@@ -165,90 +118,10 @@ After logging your first set, the weight field placeholder updates:
 - After logging 30 lbs → placeholder shows `→ 30 lbs`
 - After logging Red Band → placeholder shows `→ Red Band`
 - After logging BW → placeholder shows `→ BW`
-- After logging 2x25 lbs → placeholder shows `→ 2x25 lbs`
 
 This confirms what will be used if you leave the field blank.
 
-## Visual Progress Indicators (NEW in v1.1)
-
-### Exercise States
-
-**Current Exercise (Yellow Border):**
-- The next exercise you need to complete (first one with <3 sets)
-- Highlighted with orange/yellow left border
-- Subtle background gradient
-- Helps you quickly find where you left off
-
-**Completed Exercises (Grayed Out):**
-- Exercises where you've logged 3+ sets
-- Automatically gray out but remain visible
-- Shows you've finished that exercise
-- Can still add more sets if needed
-
-**Set Counter Badge:**
-- Shows "X/3 sets" under each exercise name
-- Green when in progress
-- Gray when completed (3+ sets)
-- Updates in real-time as you log
-
-**Today's Sets Display:**
-- Shows all sets logged today for each exercise
-- Example: "Today: Set 1: 10 reps × 25 lbs | Set 2: 10 reps × 25 lbs"
-- Updates immediately after logging
-- Helps you track your progress through the workout
-
 ### Session Management
-
-#### Undo Button (NEW in v1.3)
-
-Made a mistake? Quickly undo your last logged set!
-
-**How it works:**
-- After logging a set, an "↶ Undo Last Set" button appears right below the Log button
-- Shows up in the same exercise where you just logged
-- Click it to remove the last set
-- Button disappears after you log another set or move to a different exercise
-
-**What it does:**
-- Removes the set from your local workout log
-- Updates the display immediately
-- Easy to find - right where you were working
-
-**When it's useful:**
-- Accidentally logged the wrong exercise
-- Typo in reps or weight
-- Double-clicked the Log button
-- Changed your mind about a set
-
-#### Smart Workout Suggestion (NEW in v1.2)
-
-The app automatically suggests which workout (A or B) you should do next based on your alternating pattern.
-
-**How it works:**
-- Tracks your last completed workout (A or B)
-- Suggests the opposite workout when you open the app
-- Shows "🎯 Next" badge on the suggested workout
-- Displays "Up next: Workout B" text above the buttons
-- Auto-highlights the suggested workout with a green border
-
-**Visual indicator:**
-```
-Last workout: Workout A (Yesterday)
-💪 Up next: Workout B
-
-[Workout A]  [Workout B 🎯 Next] ← highlighted
-```
-
-**Perfect for alternating schedules:**
-- Works great if you strictly alternate A/B
-- Handles rest days automatically (only tracks actual workouts)
-- Ignores non-logged activities (runs, gyrotonic, etc.)
-- Updates after you click "Finish Workout"
-
-**Easy override:**
-- Just click the other workout button if the suggestion is wrong
-- No extra steps required
-- Selection persists if you close and reopen the app
 
 #### Finish Workout Button
 - Appears at the bottom of your exercise list
@@ -265,39 +138,67 @@ Last workout: Workout A (Yesterday)
 - Per-exercise unit memory (lbs/kg/bands)
 - Previous set defaults
 - Session context
-- Visual states (all exercises reset to active)
 
 **What it keeps:**
 - All logged data (synced to Google Sheets)
 - Your workout configuration
 - Historical "Last workout" data
 
-## Claude AI Chat Feature (NEW in v1.1)
+## Smart Workout Suggestion
 
-### What It Does
-Get encouragement, ask form questions, or chat about your workout while you train!
+The app automatically suggests which workout (A or B) you should do next based on your alternating pattern.
 
-### How to Use
-1. Click the **Chat** tab
-2. Type your message (e.g., "Give me some encouragement!" or "How do I improve my bench press form?")
-3. Hit Send
-4. Claude responds with helpful, concise advice
+### How It Works
+- Tracks your last completed workout (A or B)
+- Suggests the opposite workout when you open the app
+- Shows "🎯 Next" badge on the suggested workout
+- Displays "Up next: Workout [A/B]" text above the buttons
+- Highlights the suggested workout with a green border
 
-### Setup Required
-To enable the chat feature, you need to:
-1. Get an Anthropic API key from https://console.anthropic.com/settings/keys
-2. Add it as an environment variable in Railway: `ANTHROPIC_API_KEY`
-3. Redeploy your backend
+### Perfect for Alternating Schedules
+- Works great if you strictly alternate A/B
+- Handles rest days automatically (only tracks actual workouts)
+- Ignores non-logged activities (runs, gyrotonic, etc.)
 
-**Cost:** Very affordable for personal use (~$0.50-$1/month for typical usage)
+### Visual Indicator
+```
+Last workout: Workout A (Yesterday)
+💪 Up next: Workout B
 
-### Chat Examples
-- "Give me some motivation!"
-- "What's proper squat form?"
-- "Should I increase weight or reps?"
-- "How do I prevent shoulder pain during bench press?"
+[Workout A]  [Workout B 🎯 Next] ← highlighted
+```
 
-The chat is configured to give brief, encouraging responses perfect for quick reference during workouts.
+## Exercise Name Features
+
+### Parenthetical Hints
+You can add hints to exercise names to remind yourself of your current progression:
+
+**Examples:**
+- `Face Pulls (10 lb)` - reminds you of current weight
+- `Goblet Squats (30 kg)` - track progression
+- `Shoulder Press (Purple Band)` - remember equipment
+
+**How it works:**
+- The hint shows in your workout list (helpful reminder!)
+- Analysis automatically groups all variations together
+- "Face Pulls (10 lb)" and "Face Pulls (20 lb)" → analyzed as "Face Pulls"
+- Your detailed exercise names are preserved in the data
+
+### Starred Exercises (Doubled Weight)
+Mark exercises that use two dumbbells with a `*` in your workout configuration:
+
+**Example:**
+```
+Workout A:
+Goblet Squats
+Flat Bench Press*
+Pull-ups
+```
+
+**What it does:**
+- The `*` is automatically hidden from display
+- Lets you input weights in multiple formats: "2 x 25 lb" or "25 lb x 2"
+- Automatically calculates total weight (50 lbs in this case)
 
 ## Workout Configuration
 
@@ -305,35 +206,40 @@ The chat is configured to give brief, encouraging responses perfect for quick re
 1. Go to **Settings** tab
 2. Edit **Workout A Exercises** or **Workout B Exercises**
 3. One exercise per line
-4. Add a **star (*)** at the end for doubled weight exercises (e.g., `Flat Bench Press*`)
-5. Click **Save Configuration**
+4. Add `*` after exercise name for doubled weight exercises
+5. Add hints in parentheses for reminders (optional)
+6. Click **Save Configuration**
 
-### Default Workouts
+### Example Configuration
 
-**Workout A** (9 exercises):
-- Goblet Squats
-- Band Pullaparts
-- Kettlebell RDLs
-- Flat Bench Press* *(doubled weight - uses 2x format)*
-- Front & Side Shoulder Raises
-- Incline or Cable Fly
-- Calf Raises
-- Pull-ups
-- Ab Isometrics
+**Workout A:**
+```
+Goblet Squats (30 kg)
+Band Pullaparts
+Kettlebell RDLs
+Flat Bench Press*
+Front & Side Shoulder Raises
+Incline or Cable Fly
+Calf Raises
+Pull-ups
+Ab Isometrics
+```
 
-**Workout B** (12 exercises):
-- Incline/Decline Pushups or Pull-ups
-- Hammer Pullovers
-- Swiss Ball T, W, & M
-- Shoulder Press (Purple Band) *(supports doubled weight)*
-- Curls (18 lb DBs)
-- Band Pullaparts (Palms Up)
-- Band Pullaparts (Palms Down)
-- Lat Raise Front/Side Superset (10 lb DBs)
-- Tricep Extensions (12 lb DB)
-- Bottoms Up KB Holds (8 kg)
-- Face Pulls (20 lb Band)
-- Ab Iso Work
+**Workout B:**
+```
+Incline/Decline Pushups or Pull-ups
+Hammer Pullovers
+Swiss Ball T W M
+Shoulder Press (Purple Band)
+Curls (18 lb DBs)*
+Band Pullaparts (Palms Up)
+Band Pullaparts (Palms Down)
+Lat Raise Front/Side Superset (10 lb DBs)*
+Tricep Extensions (12 lb DB)
+Bottoms Up KB Holds (8 kg)
+Face Pulls (20 lb Band)
+Ab Iso Work
+```
 
 ## Data Management
 
@@ -346,9 +252,9 @@ The chat is configured to give brief, encouraging responses perfect for quick re
    - View at: Settings → Open Sheet
 
 2. **Browser localStorage (Backup)**
-   - Local cache for offline access
-   - Faster loading
+   - Local cache for faster access
    - Automatically syncs to Sheets when online
+   - Can be reloaded from Sheet if needed
 
 ### Data Format
 
@@ -357,8 +263,40 @@ Your Google Sheet has these columns:
 - **Workout**: A or B
 - **Exercise**: Exercise name
 - **Reps**: Number of repetitions
-- **Weight**: Numeric weight value (0 for BW/bands)
-- **Unit**: lbs, kg, BW, Red Band, 2x25 lbs, etc.
+- **Weight**: Numeric weight value (0 for BW/bands, calculated total for doubled weights)
+- **Unit**: lbs, kg, BW, Red Band, or doubled format like "2×25 lbs"
+
+### Display Conventions
+
+The app uses different symbols to distinguish exercise types:
+
+- **Doubled weights**: `10 reps @ 2×25 lbs` (using two dumbbells)
+- **Regular weights**: `10 reps × 25 lbs` (single weight)
+- **Bands**: `15 (Blue Band)`
+- **Bodyweight**: `10 (BW)`
+
+This makes it easy to see at a glance what equipment you used.
+
+**Storage for doubled weights:**
+- Weight field stores the total (50 for "2×25")
+- Unit field stores the display format ("2×25 lbs")
+- Analysis uses the total weight for volume calculations
+- Display shows the actual equipment used
+
+### Reload from Sheet
+
+If your local data gets out of sync with the Google Sheet:
+
+1. Go to **Settings** tab
+2. Click **Reload from Sheet**
+3. Confirm the dialog
+4. Your local data will be replaced with the Google Sheet data
+
+**When to use:**
+- After manually editing the Google Sheet
+- If data looks incorrect on your device
+- When switching devices
+- After fixing duplicates or errors in the sheet
 
 ### Export Options
 
@@ -367,6 +305,8 @@ Your Google Sheet has these columns:
 2. Click **Export to CSV**
 3. Downloads a file: `workout-log-YYYY-MM-DD.csv`
 4. Can be opened in Excel, Google Sheets, or any spreadsheet app
+
+**Note:** The CSV export is for backup purposes. To restore data, manually import the CSV into your Google Sheet, then use "Reload from Sheet" on your device.
 
 **Direct Google Sheets Access:**
 - Click "Open Sheet" in Settings
@@ -380,23 +320,26 @@ Your Google Sheet has these columns:
 1. Both devices must authenticate with the same Google account
 2. Data syncs through Google Sheets
 3. Each device maintains a local cache
+4. Use "Reload from Sheet" to sync if needed
 
 **Best practices:**
 - Wait for "Synced" status before switching devices
-- Refresh browser if you don't see recent data
-- If offline, data saves locally and syncs when back online
+- Use "Reload from Sheet" if you don't see recent data
+- Keep Google Sheet as your source of truth
 
 ## Analysis Features
+
+### Exercise Selection
+The Analysis tab shows **only exercises you've actually logged** (not configured exercises). As you log new exercises, they automatically appear in the analysis dropdown.
 
 ### Available Metrics (per exercise)
 
 1. **Total Volume (Last Workout)**
    - Sum of reps × weight for your last session
    - Shows % change from previous workout
-   - Note: Doubled weights (2x25 lbs) use single dumbbell weight for volume calculations
 
 2. **Max Reps (Single Set)**
-   - Your highest rep count ever
+   - Your highest rep count ever for this exercise
    - Shows date and weight used
 
 3. **Personal Record (Weight)**
@@ -420,45 +363,33 @@ Your Google Sheet has these columns:
 - Color intensity shows relative volume
 - Highest volume workout highlighted
 
+### Exercise Grouping
+The analysis automatically groups exercise variations:
+- "Face Pulls (10 lb)" and "Face Pulls (20 lb)" → analyzed together as "Face Pulls"
+- "Flat Bench Press*" → shown as "Flat Bench Press"
+- All data from variations is combined for comprehensive analysis
+
+## History View
+
+### What It Shows
+- Last 20 workout sessions
+- Date, workout type (A or B)
+- All exercises and sets from each session
+- Proper display of weights, bands, and bodyweight
+
+### Display Format
+- **Weighted exercises**: "10×25 lbs"
+- **Band exercises**: "15 (Blue Band)"
+- **Bodyweight**: "10 (BW)"
+- **No weight**: Just reps
+
 ## Tips & Best Practices
-
-### Using Parenthetical Hints in Exercise Names
-
-You can add hints to exercise names to remind yourself of your current progression level!
-
-**Example:**
-```
-Face Pulls (10 lb)
-Face Pulls (20 lb)
-Goblet Squats (30 kg)
-```
-
-**How it works:**
-- Add your hint in parentheses anywhere in the exercise name
-- The hint shows up in your workout list (helpful reminder!)
-- Analysis automatically groups all variations together
-- "Face Pulls (10 lb)" and "Face Pulls (20 lb)" → analyzed as "Face Pulls"
-
-**When to use:**
-- Track your current working weight: `Curls (18 lb DBs)`
-- Note equipment: `Shoulder Press (Purple Band)`
-- Remember rep ranges: `Push-ups (15-12-10)`
-- Track progression: `Bench Press (2x25 lb)` → `Bench Press (2x30 lb)`
-
-**The analysis is smart:**
-- Strips parentheses when grouping data
-- Shows combined history for all variations
-- Your detailed exercise names are preserved in the data
-
-This is perfect for exercises where you're gradually increasing weight!
 
 ### For Fastest Logging
 
-1. **First set**: Enter full information (e.g., `30 kg` or `2x25`)
+1. **First set**: Enter full information (e.g., `30 kg`)
 2. **Subsequent sets**: Just enter reps, leave weight blank
-3. **Watch the visual cues**: Yellow border shows current exercise, gray shows completed
-4. **Check the counter**: "2/3 sets" badge shows your progress
-5. **Finish workout**: Click "Finish Workout" when done to reset everything
+3. **Finish workout**: Click "Finish Workout" when done
 
 ### For Different Rep Schemes
 
@@ -483,11 +414,13 @@ Set 2: 10 reps, [blank] ← auto-fills 135 lbs
 Set 3: 8 reps, [blank]  ← auto-fills 135 lbs
 ```
 
-**Doubled Weight Dumbbells:**
+### For Doubled Weight Exercises
+
+Mark with `*` in config, then input flexibly:
 ```
-Set 1: 10 reps, 2x25
-Set 2: 10 reps, [blank] ← auto-fills 2x25 lbs
-Set 3: 8 reps, 2x30     ← switches to 30lb dumbbells
+Set 1: 8 reps, 2 x 25 lb    → stores 50 lbs
+Set 2: 8 reps, 25 lb x 2    → stores 50 lbs (also works!)
+Set 3: 6 reps, 2x30         → stores 60 lbs
 ```
 
 ### For Mixed Workouts
@@ -496,15 +429,11 @@ Each exercise has independent memory, so you can do:
 - Weighted squats (kg)
 - Bodyweight pull-ups (BW)
 - Band exercises (red/blue/etc)
-- Dumbbell exercises (2x25 lb)
 - All in the same workout with no confusion
 
 ### For Supersets or Circuits
 
-Log each exercise separately as you complete it. The app shows:
-- Today's logged sets under each exercise
-- Visual highlighting of current exercise
-- Set counter showing progress
+Log each exercise separately as you complete it. The app shows today's logged sets under each exercise so you can track where you are.
 
 ## Troubleshooting
 
@@ -525,25 +454,20 @@ Log each exercise separately as you complete it. The app shows:
 2. Override by typing the correct value
 3. Click "Finish Workout" to reset memory if needed
 
-### "Last Workout" Shows Wrong Date
-- Fixed in v1.1! Update to latest version
-- If still having issues, clear browser cache and reload
+### Data Out of Sync
+1. Go to Settings → "Reload from Sheet"
+2. This replaces local data with Google Sheet data
+3. Refreshes all views
+
+### Duplicate Entries
+1. Check Google Sheet directly for duplicates
+2. Manually delete duplicate rows in the sheet
+3. Use "Reload from Sheet" to sync clean data
 
 ### Lost Local Data
 - Don't worry! Everything is in Google Sheets
-- Just refresh the page to reload from Sheets
+- Just use "Reload from Sheet" to restore
 - Export CSV regularly as backup
-
-### Chat Not Working
-1. Check that `ANTHROPIC_API_KEY` is set in Railway environment variables
-2. Verify you have credits in your Anthropic account (console.anthropic.com)
-3. Check Railway logs for error messages
-4. Ensure backend is deployed and running
-
-### Visual States Not Updating
-1. Hard refresh the page (Ctrl+Shift+R or Cmd+Shift+R)
-2. Clear browser cache
-3. Ensure you're using the latest version of index.html
 
 ## Technical Details
 
@@ -552,21 +476,10 @@ Log each exercise separately as you complete it. The app shows:
 - **Backend**: Node.js/Express server on Railway
 - **Database**: Google Sheets via Google Sheets API v4
 - **Auth**: OAuth 2.0 with Google Identity Services
-- **AI**: Anthropic Claude API via backend proxy
 
 ### URLs (Configuration)
 - Frontend: `https://dcworkouts.netlify.app`
 - Backend: `https://workout-tracker-backend-production-c138.up.railway.app`
-
-### API Endpoints
-- `GET /auth/url` - Generate OAuth URL
-- `GET /auth/callback` - Handle OAuth callback
-- `GET /auth/check` - Verify session
-- `POST /auth/logout` - End session
-- `POST /sheets/create` - Create new spreadsheet
-- `GET /sheets/:id/data` - Load workout data
-- `POST /sheets/:id/entry` - Add workout entry
-- `POST /chat` - Send message to Claude AI
 
 ### Storage Limits
 - Google Sheets: 5 million cells per spreadsheet (effectively unlimited for workout data)
@@ -576,7 +489,6 @@ Log each exercise separately as you complete it. The app shows:
 ### Privacy & Security
 - Your Google credentials never touch the frontend
 - OAuth tokens stored securely on Railway backend
-- Anthropic API key never exposed to frontend
 - Only you can access your workout data
 - App is in "Testing" mode - only approved testers can use it
 
@@ -585,50 +497,33 @@ Log each exercise separately as you complete it. The app shows:
 - `index.html` - Frontend application
 - `server.js` - Backend API server
 - `package.json` - Node.js dependencies
+- `SETUP_GUIDE.md` - Detailed deployment instructions
 - `README.md` - This file
-- `DEPLOYMENT_GUIDE.md` - Deployment instructions
 
 ## Version History
 
-**v1.4.1** (January 2026)
-- Fixed: Stars are now properly stripped from exercise names before storing in database
-- Exercise names in Google Sheets will not contain the * marker
-- Ensures clean data for analysis and tracking
+**v1.8** (January 2026)
+- Fixed doubled weight storage and display format
+- Doubled weights now show as "10 reps @ 2×25 lbs" instead of "10 reps × 50 lbs"
+- Stores total weight (50) for volume calculations while preserving display format (2×25)
+- Analysis and metrics correctly use calculated weight for volume tracking
 
-**v1.4** (January 2026)
-- Changed doubled weight detection to star-based system (add * to exercise name in config)
-- Moved undo button to inline position (appears right below Log button in the same exercise)
-- Simplified configuration - no need to edit code for doubled weight exercises
-- Star is automatically hidden from display names
+**v1.7** (January 2026)
+- Analysis tab now shows only exercises you've actually logged
+- Fixed History tab to display band colors properly
+- All special characters properly encoded (no more Greek symbols)
 
-**v1.3.1** (January 2026)
-- Added smart analysis grouping that strips parenthetical hints from exercise names
-- Now "Face Pulls (10 lb)" and "Face Pulls (20 lb)" are analyzed together
-- Exercise names with hints still display correctly in workout lists
-- Analysis dropdown shows all logged exercises including variants
+**v1.6** (January 2026)
+- Fixed History display for band exercises and bodyweight
+- Proper formatting: "15 (Blue Band)" instead of "15×0"
 
-**v1.3** (January 2026)
-- Added undo button for last logged set (10-second window)
-- Fixed timezone bug on workout selection page
-- Added clear documentation for editing doubled weight exercises list
-- Improved date calculations to use local timezone consistently
-
-**v1.2** (January 2026)
-- Added smart workout suggestion feature (automatically suggests A or B based on alternating pattern)
-- Added visual "🎯 Next" badge on suggested workout
-- Added "Up next" text display showing which workout is recommended
-- Improved workout selection UI with suggestion highlighting
-- Recalculates suggestion after finishing workout
-
-**v1.1** (January 2026)
-- Added visual progress indicators (grayed out completed exercises, highlighted current exercise)
-- Added set counter badges showing X/3 sets
-- Added real-time "today's sets" display under each exercise
-- Added Claude AI chat feature via backend integration
-- Added doubled weight support (2x25 format) for dumbbell exercises
-- Fixed blue band recognition bug
-- Fixed timezone bug in "last workout" display
-- Improved smart weight input with better previews
+**v1.5** (January 2026)
+- Added "Reload from Sheet" button in Settings
+- Automatically uploads existing data when creating new sheet
+- Fixed all emoji and special character encoding issues
+- Smart workout suggestion feature
+- Analysis tab groups exercise variations (strips stars and parentheses)
+- Enhanced weight parsing: supports both "2 x 25 lb" and "25 lb x 2"
 
 **v1.0** (Initial release)
 - Basic logging with Google Sheets sync
@@ -641,7 +536,21 @@ Log each exercise separately as you complete it. The app shows:
 ## Support & Feedback
 
 ### Reporting Issues
-Since this is a personal project, there's no formal issue tracker. Common issues and solutions are documented in the Troubleshooting section above.
+Since this is a personal project, there's no formal issue tracker. Common solutions:
+
+**Performance Issues:**
+- Clear browser cache
+- Check if too many browser tabs open
+- Ensure stable internet connection
+
+**Data Issues:**
+- Use "Reload from Sheet" to sync with Google Sheets
+- Check Google Sheet directly for data integrity
+- Export CSV as backup regularly
+
+**Feature Requests:**
+- Document desired behavior
+- Consider if it fits the "fast logging" philosophy
 
 ### Making Changes
 Both frontend and backend are easily modifiable:
@@ -661,10 +570,9 @@ Built with:
 - Netlify (hosting)
 - Express.js
 - Google OAuth 2.0
-- Anthropic Claude API
 
 ---
 
-**Current Version:** v1.4.1  
+**Current Version:** v1.8  
 **Last Updated:** January 2026  
 **Deployed at:** https://dcworkouts.netlify.app
