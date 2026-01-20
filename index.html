@@ -257,6 +257,33 @@
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
 
+        .workout-btn.suggested {
+            border-color: var(--accent);
+            border-width: 3px;
+            position: relative;
+        }
+
+        .workout-btn.suggested::after {
+            content: '🎯 Next';
+            position: absolute;
+            top: -8px;
+            right: 8px;
+            background: var(--accent);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .workout-suggestion-text {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 16px;
+            font-weight: 500;
+        }
+
         .exercise-item {
             background: var(--surface-elevated);
             padding: 20px;
@@ -442,6 +469,31 @@
         }
 
         .set-input button:active {
+            transform: scale(0.98);
+        }
+
+        .undo-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            background: var(--error);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 8px;
+        }
+
+        .undo-inline:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+
+        .undo-inline:active {
             transform: scale(0.98);
         }
 
@@ -778,7 +830,8 @@
         let currentWorkout = null;
         let currentView = 'log';
         let syncStatus = 'synced'; // synced, syncing, error
-        let sessionUnitMemory = {}; // Tracks last used unit per exercise in current session
+        let sessionUnitMemory = {};
+        let lastLoggedSet = null; // Track last set for undo // Tracks last used unit per exercise in current session
 
         // Initialize
         async function init() {
@@ -876,11 +929,51 @@
                 const result = await apiCall('/sheets/create', { method: 'POST' });
                 spreadsheetId = result.spreadsheetId;
                 localStorage.setItem('spreadsheetId', spreadsheetId);
-                setSyncStatus('synced');
                 
-                // Show success message with link
-                const message = `Sheet created successfully!\n\nView it at:\n${result.url}`;
-                alert(message);
+                // Upload existing local data if any
+                if (workoutLog.length > 0) {
+                    // Sort by date (oldest first)
+                    const sortedLog = [...workoutLog].sort((a, b) => new Date(a.date) - new Date(b.date));
+                    
+                    let uploaded = 0;
+                    let failed = 0;
+                    
+                    // Update header to show progress
+                    const headerStats = document.getElementById('headerStats');
+                    if (headerStats) {
+                        headerStats.textContent = `Uploading workout history... (0/${sortedLog.length})`;
+                    }
+                    
+                    for (const entry of sortedLog) {
+                        try {
+                            await addEntry(entry, true); // Suppress individual alerts
+                            uploaded++;
+                            
+                            // Update progress
+                            if (headerStats) {
+                                headerStats.textContent = `Uploading workout history... (${uploaded}/${sortedLog.length})`;
+                            }
+                        } catch (error) {
+                            failed++;
+                            console.error('Failed to upload entry:', entry, error);
+                        }
+                        
+                        // Small delay to avoid rate limiting (100ms between entries)
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+                    
+                    setSyncStatus('synced');
+                    
+                    // Show results
+                    if (failed > 0) {
+                        alert(`Sheet created!\n\nUploaded: ${uploaded} entries\nFailed: ${failed} entries\n\nYour data is safe locally. Consider exporting CSV as backup.\n\nView at:\n${result.url}`);
+                    } else {
+                        alert(`Sheet created successfully!\n\nUploaded ${uploaded} workout entries.\n\nView at:\n${result.url}`);
+                    }
+                } else {
+                    setSyncStatus('synced');
+                    alert(`Sheet created successfully!\n\nView it at:\n${result.url}`);
+                }
                 
                 // Refresh the app to show the new sheet ID
                 renderApp();
@@ -908,7 +1001,47 @@
             }
         }
 
-        async function addEntry(entry) {
+        async function reloadFromSheet() {
+            if (!spreadsheetId || !sessionId) {
+                alert('No sheet connected');
+                return;
+            }
+            
+            if (!confirm('This will replace your local workout history with data from the Google Sheet. Continue?')) {
+                return;
+            }
+            
+            try {
+                setSyncStatus('syncing');
+                
+                // Clear local workout log
+                workoutLog = [];
+                
+                // Load fresh from sheet
+                const result = await apiCall(`/sheets/${spreadsheetId}/data`);
+                workoutLog = result.workouts;
+                
+                // Save to localStorage
+                saveToLocalStorage();
+                
+                setSyncStatus('synced');
+                
+                alert(`Successfully reloaded ${workoutLog.length} entries from Google Sheet!`);
+                
+                // Refresh the current view
+                if (currentView === 'history') {
+                    renderHistory();
+                } else {
+                    renderApp();
+                }
+            } catch (error) {
+                setSyncStatus('error');
+                console.error('Reload error:', error);
+                alert('Failed to reload from sheet. Please try again.');
+            }
+        }
+
+        async function addEntry(entry, suppressAlert = false) {
             if (!spreadsheetId || !sessionId) {
                 console.warn('No sheet ID or session, saving locally only');
                 return;
@@ -924,7 +1057,10 @@
             } catch (error) {
                 setSyncStatus('error');
                 console.error('Sync error:', error);
-                alert('Warning: Failed to sync to Google Sheets. Data saved locally.');
+                if (!suppressAlert) {
+                    alert('Warning: Failed to sync to Google Sheets. Data saved locally.');
+                }
+                throw error; // Re-throw so createSheet can catch it
             }
         }
 
@@ -989,7 +1125,7 @@
         function renderAuthScreen() {
             document.getElementById('app').innerHTML = `
                 <div class="auth-screen">
-                    <div class="auth-logo">ðŸ’ª</div>
+                    <div class="auth-logo">💪</div>
                     <h1 class="auth-title">Workout Tracker</h1>
                     <p class="auth-subtitle">
                         Track your workouts seamlessly with Google Sheets. 
@@ -1003,12 +1139,27 @@
             `;
         }
 
+        // Helper: Render workout selector with suggestion
+        function renderWorkoutSelector() {
+            const nextWorkout = getNextWorkout();
+            const suggestedClass = (workout) => workout === nextWorkout ? 'suggested' : '';
+            
+            return `
+                <div class="workout-suggestion-text">Up next: Workout ${nextWorkout}</div>
+                <div class="workout-suggestion-text">Up next: Workout <span id="suggestedWorkout"></span></div>
+                        <div class="workout-selector">
+                    <button class="workout-btn ${suggestedClass('A')}" onclick="selectWorkout('A')">Workout A</button>
+                    <button class="workout-btn ${suggestedClass('B')}" onclick="selectWorkout('B')">Workout B</button>
+                </div>
+            `;
+        }
+
         function renderApp() {
             document.getElementById('app').innerHTML = `
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>ðŸ’ª Workout Tracker</h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v1.9</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1025,13 +1176,14 @@
                     </div>
 
                     <div id="log" class="tab-content active">
+                        <div class="workout-suggestion-text">Up next: Workout <span id="suggestedWorkout"></span></div>
                         <div class="workout-selector">
-                            <button class="workout-btn" onclick="selectWorkout('A')">Workout A</button>
-                            <button class="workout-btn" onclick="selectWorkout('B')">Workout B</button>
+                            <button class="workout-btn" id="workoutBtnA" onclick="selectWorkout('A')">Workout A</button>
+                            <button class="workout-btn" id="workoutBtnB" onclick="selectWorkout('B')">Workout B</button>
                         </div>
                         <div id="exerciseList">
                             <div class="empty-state">
-                                <div class="empty-state-icon">ðŸ‹ï¸</div>
+                                <div class="empty-state-icon">🏋️</div>
                                 <p>Select a workout to begin logging</p>
                             </div>
                         </div>
@@ -1045,7 +1197,7 @@
                         </div>
                         <div id="analysisContent">
                             <div class="empty-state">
-                                <div class="empty-state-icon">ðŸ“Š</div>
+                                <div class="empty-state-icon">📊</div>
                                 <p>Select an exercise to view analysis</p>
                             </div>
                         </div>
@@ -1064,6 +1216,7 @@
                             </div>
                             ${!spreadsheetId ? '<button class="btn" onclick="createSheet()">Create New Sheet</button>' : ''}
                             ${spreadsheetId ? `<a href="https://docs.google.com/spreadsheets/d/${spreadsheetId}" target="_blank" class="btn">Open Sheet</a>` : ''}
+                            ${spreadsheetId ? '<button class="btn btn-secondary" onclick="reloadFromSheet()">Reload from Sheet</button>' : ''}
                         </div>
 
                         <div class="settings-section">
@@ -1089,12 +1242,68 @@
             `;
 
             updateHeaderStats();
+            updateWorkoutSuggestion();
             if (currentView !== 'log') {
                 switchTab(currentView);
             }
         }
 
+        // Update workout suggestion badges dynamically
+        function updateWorkoutSuggestion() {
+            const nextWorkout = getNextWorkout();
+            const btnA = document.getElementById('workoutBtnA');
+            const btnB = document.getElementById('workoutBtnB');
+            const suggested = document.getElementById('suggestedWorkout');
+            
+            if (!btnA || !btnB) return; // Elements don't exist yet
+            
+            // Update text
+            if (suggested) {
+                suggested.textContent = nextWorkout;
+            }
+            
+            // Add suggested class to the right button
+            btnA.classList.remove('suggested');
+            btnB.classList.remove('suggested');
+            
+            if (nextWorkout === 'A') {
+                btnA.classList.add('suggested');
+            } else {
+                btnB.classList.add('suggested');
+            }
+        }
+
         // UI Functions (rest of the functions from previous version)
+        // Helper: Strip stars and parentheses from exercise names for normalization
+        function normalizeExerciseName(name) {
+            return name
+                .replace(/\*/g, '') // Remove stars
+                .replace(/\s*\([^)]*\)/g, '') // Remove anything in parentheses
+                .trim();
+        }
+
+        // Helper: Check if exercise is marked as doubled weight (has star)
+        function isDoubledWeightExercise(name) {
+            return name.includes('*');
+        }
+
+        // Helper: Get display name (strip star but keep parentheses)
+        function getExerciseDisplayName(name) {
+            return name.replace(/\*/g, '').trim();
+        }
+
+        // Helper: Get next workout suggestion based on alternating pattern
+        function getNextWorkout() {
+            if (workoutLog.length === 0) return 'A'; // Default to A if no history
+            
+            // Find the last workout (A or B)
+            const workoutEntries = workoutLog.filter(e => e.workout === 'A' || e.workout === 'B');
+            if (workoutEntries.length === 0) return 'A';
+            
+            const lastWorkout = workoutEntries[workoutEntries.length - 1].workout;
+            return lastWorkout === 'A' ? 'B' : 'A';
+        }
+
         function switchTab(tabName) {
             currentView = tabName;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1165,13 +1374,18 @@
                 if (todaySets.length > 0) {
                     const lastSet = todaySets[todaySets.length - 1];
                     if (lastSet.unit === 'BW') {
-                        placeholder = 'â†’ BW';
+                        placeholder = '→ BW';
                     } else if (lastSet.weight > 0) {
-                        placeholder = `â†’ ${lastSet.weight} ${lastSet.unit}`;
+                        placeholder = `→ ${lastSet.weight} ${lastSet.unit}`;
                     } else if (lastSet.unit && lastSet.unit !== 'NA') {
-                        placeholder = `â†’ ${lastSet.unit}`;
+                        placeholder = `→ ${lastSet.unit}`;
                     }
                 }
+                
+                // Format today's sets for display
+                const todaySetsDisplay = todaySets.length > 0 
+                    ? `<strong>Today:</strong> ${todaySets.map((s, i) => `Set ${i + 1}: ${formatWeight(s)}`).join(' | ')}`
+                    : '';
                 
                 return `
                     <div class="${cssClasses}">
@@ -1185,8 +1399,13 @@
                             </div>
                             <button onclick="logSet('${exercise.replace(/'/g, "\\'")}', ${idx})">Log</button>
                         </div>
+                        ${lastLoggedSet && lastLoggedSet.data.exercise === exercise ? `
+                            <button class="undo-inline" onclick="undoLastSet()">
+                                ↶ Undo Last Set
+                            </button>
+                        ` : ''}
                         <div class="weight-hint">Ex: 25, 25 kg, red, NA</div>
-                        <div class="logged-sets" id="logged-${idx}"></div>
+                        <div class="logged-sets" id="logged-${idx}">${todaySetsDisplay}</div>
                     </div>
                 `;
             }).join('');
@@ -1219,8 +1438,14 @@
                 return `${reps} (${set.unit})`;
             }
             
-            // Regular weight with space
-            return `${reps} Ã— ${set.weight} ${set.unit}`;
+            // Check if this is a doubled weight format (e.g., "2×25 lbs")
+            if (set.unit.includes('×')) {
+                // Doubled weight - use @ symbol
+                return `${reps} @ ${set.unit}`;
+            }
+            
+            // Regular weight - use × symbol
+            return `${reps} × ${set.weight} ${set.unit}`;
         }
 
         // Smart weight parser with session memory and previous set defaults
@@ -1264,6 +1489,44 @@
                     if (exercise) sessionUnitMemory[exercise] = unit;
                     return { weight: 0, unit };
                 }
+            }
+            
+            // Handle doubled weight format: "2 x 25 lb" or "25 lb x 2" or "2x25" etc
+            // Matches: NUMBER x NUMBER UNIT or NUMBER UNIT x NUMBER
+            const doubledMatch = str.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*(lbs?|kgs?|kg|lb)?$/) ||
+                                str.match(/^(\d+(?:\.\d+)?)\s*(lbs?|kgs?|kg|lb)?\s*x\s*(\d+(?:\.\d+)?)$/);
+            
+            if (doubledMatch) {
+                let weight, multiplier, unit;
+                
+                // Check which pattern matched
+                if (str.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/)) {
+                    // Pattern: "2 x 25 lb" - multiplier first
+                    multiplier = parseFloat(doubledMatch[1]);
+                    weight = parseFloat(doubledMatch[2]);
+                    unit = doubledMatch[3];
+                } else {
+                    // Pattern: "25 lb x 2" - weight first
+                    weight = parseFloat(doubledMatch[1]);
+                    unit = doubledMatch[2];
+                    multiplier = parseFloat(doubledMatch[3]);
+                }
+                
+                // Normalize base unit
+                if (!unit) unit = (exercise && sessionUnitMemory[exercise]) || 'lbs';
+                if (unit === 'lb' || unit === 'lbs') unit = 'lbs';
+                if (unit === 'kg' || unit === 'kgs') unit = 'kg';
+                
+                // Calculate total weight for volume tracking
+                const totalWeight = weight * multiplier;
+                
+                // Store as "2×25 lbs" format in unit for display
+                const displayUnit = `${multiplier}×${weight} ${unit}`;
+                
+                // Remember the display format
+                if (exercise) sessionUnitMemory[exercise] = displayUnit;
+                
+                return { weight: totalWeight, unit: displayUnit };
             }
             
             // Parse number with optional unit
@@ -1355,6 +1618,23 @@
             return context.measureText(text).width;
         }
 
+
+        function undoLastSet() {
+            if (!lastLoggedSet) return;
+            
+            // Remove the set from the log
+            workoutLog.splice(lastLoggedSet.index, 1);
+            
+            saveToLocalStorage();
+            
+            // Clear last logged set
+            lastLoggedSet = null;
+            
+            // Re-render
+            renderExercises();
+            updateHeaderStats();
+        }
+
         async function logSet(exercise, idx) {
             const reps = document.getElementById(`reps-${idx}`).value;
             const weightInput = document.getElementById(`weight-${idx}`).value;
@@ -1376,6 +1656,14 @@
             };
 
             workoutLog.push(setData);
+            
+            // Track this set for undo
+            lastLoggedSet = {
+                data: setData,
+                index: workoutLog.length - 1,
+                originalExercise: exercise
+            };
+            
             saveToLocalStorage();
             await addEntry(setData);
             
@@ -1430,21 +1718,49 @@
             const daysAgo = Math.floor((new Date() - lastDate) / (1000 * 60 * 60 * 24));
             
             if (daysAgo === 0) {
-                stats.textContent = `Last workout: Today â€¢ ${workoutLog.length} total sets`;
+                stats.textContent = `Last workout: Today • ${workoutLog.length} total sets`;
             } else if (daysAgo === 1) {
-                stats.textContent = `Last workout: Yesterday â€¢ ${workoutLog.length} total sets`;
+                stats.textContent = `Last workout: Yesterday • ${workoutLog.length} total sets`;
             } else {
-                stats.textContent = `Last workout: ${daysAgo} days ago â€¢ ${workoutLog.length} total sets`;
+                stats.textContent = `Last workout: ${daysAgo} days ago • ${workoutLog.length} total sets`;
             }
         }
 
         // Analysis functions (same as before)
         function populateExerciseSelector() {
             const select = document.getElementById('exerciseSelect');
-            const allExercises = [...new Set([...workouts.A, ...workouts.B])].sort();
+            
+            // Get all unique exercises from workout history
+            const loggedExercises = [...new Set(workoutLog.map(e => e.exercise))];
+            
+            if (loggedExercises.length === 0) {
+                select.innerHTML = '<option value="">No exercises logged yet...</option>';
+                return;
+            }
+            
+            // Normalize and group exercises
+            const normalizedExercises = loggedExercises.map(ex => ({
+                original: ex,
+                normalized: normalizeExerciseName(ex),
+                display: getExerciseDisplayName(ex)
+            }));
+            
+            // Remove duplicates based on normalized name
+            const uniqueExercises = [];
+            const seen = new Set();
+            
+            for (const ex of normalizedExercises) {
+                if (!seen.has(ex.normalized)) {
+                    seen.add(ex.normalized);
+                    uniqueExercises.push(ex);
+                }
+            }
+            
+            // Sort by display name
+            uniqueExercises.sort((a, b) => a.display.localeCompare(b.display));
             
             select.innerHTML = '<option value="">Select an exercise...</option>' +
-                allExercises.map(ex => `<option value="${ex}">${ex}</option>`).join('');
+                uniqueExercises.map(ex => `<option value="${ex.normalized}">${ex.display}</option>`).join('');
         }
 
         function renderAnalysis() {
@@ -1455,14 +1771,14 @@
             if (!exercise) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">ðŸ“Š</div>
+                        <div class="empty-state-icon">📊</div>
                         <p>Select an exercise to view analysis</p>
                     </div>
                 `;
                 return;
             }
 
-            const exerciseData = workoutLog.filter(e => e.exercise === exercise);
+            const exerciseData = workoutLog.filter(e => normalizeExerciseName(e.exercise) === exercise);
             
             if (exerciseData.length === 0) {
                 container.innerHTML = `
@@ -1481,7 +1797,7 @@
                     <div class="metric-title">Total Volume (Last Workout)</div>
                     <div class="metric-value">${metrics.lastVolume.toLocaleString()}</div>
                     <div class="metric-change ${metrics.volumeChange >= 0 ? 'positive' : 'negative'}">
-                        ${metrics.volumeChange >= 0 ? 'â†‘' : 'â†“'} ${Math.abs(metrics.volumeChange).toFixed(1)}% from previous
+                        ${metrics.volumeChange >= 0 ? '↑' : '↓'} ${Math.abs(metrics.volumeChange).toFixed(1)}% from previous
                     </div>
                 </div>
 
@@ -1489,7 +1805,7 @@
                     <div class="metric-title">Max Reps (Single Set)</div>
                     <div class="metric-value">${metrics.maxReps}</div>
                     <div class="metric-change">
-                        ${metrics.maxRepsDate} â€¢ ${metrics.maxRepsWeight} lbs
+                        ${metrics.maxRepsDate} • ${metrics.maxRepsWeight} lbs
                     </div>
                 </div>
 
@@ -1639,7 +1955,26 @@
                 
                 entries.forEach(e => {
                     if (!exerciseSummary[e.exercise]) exerciseSummary[e.exercise] = [];
-                    exerciseSummary[e.exercise].push(`${e.reps}Ã—${e.weight}`);
+                    // Format each set properly (shows bands, BW, weights with units)
+                    let setDisplay;
+                    if (!e.weight || e.weight === 0 || e.unit === 'BW') {
+                        if (e.unit && e.unit !== 'NA' && e.unit !== 'BW') {
+                            // Band colors
+                            setDisplay = `${e.reps} (${e.unit})`;
+                        } else if (e.unit === 'BW') {
+                            setDisplay = `${e.reps} (BW)`;
+                        } else {
+                            setDisplay = `${e.reps}`;
+                        }
+                    } else {
+                        // Check if doubled weight format (e.g., "2×25 lbs")
+                        if (e.unit.includes('×')) {
+                            setDisplay = `${e.reps} @ ${e.unit}`;
+                        } else {
+                            setDisplay = `${e.reps}×${e.weight} ${e.unit}`;
+                        }
+                    }
+                    exerciseSummary[e.exercise].push(setDisplay);
                 });
 
                 return `
@@ -1693,8 +2028,9 @@
             const exerciseCount = new Set(todaySets.map(s => s.exercise)).size;
             const setCount = todaySets.length;
             
-            // Clear session memory
+            // Clear session memory and undo state
             sessionUnitMemory = {};
+            lastLoggedSet = null;
             
             // Show summary
             alert(`Workout ${currentWorkout} Complete! 🎉\n\n${exerciseCount} exercises\n${setCount} sets logged today`);
@@ -1707,7 +2043,7 @@
             
             document.getElementById('exerciseList').innerHTML = `
                 <div class="empty-state">
-                    <div class="empty-state-icon">ðŸ‹ï¸</div>
+                    <div class="empty-state-icon">🏋️</div>
                     <p>Select a workout to begin logging</p>
                 </div>
             `;
