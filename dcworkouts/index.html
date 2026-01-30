@@ -1183,7 +1183,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.0</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.1</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1744,8 +1744,7 @@
             // Normalize and group exercises
             const normalizedExercises = loggedExercises.map(ex => ({
                 original: ex,
-                normalized: normalizeExerciseName(ex),
-                display: getExerciseDisplayName(ex)
+                normalized: normalizeExerciseName(ex)
             }));
             
             // Remove duplicates based on normalized name
@@ -1759,11 +1758,19 @@
                 }
             }
             
-            // Sort by display name
-            uniqueExercises.sort((a, b) => a.display.localeCompare(b.display));
+            // Sort by normalized name
+            uniqueExercises.sort((a, b) => a.normalized.localeCompare(b.normalized));
             
+            // Create display names with proper capitalization
             select.innerHTML = '<option value="">Select an exercise...</option>' +
-                uniqueExercises.map(ex => `<option value="${ex.normalized}">${ex.display}</option>`).join('');
+                uniqueExercises.map(ex => {
+                    // Capitalize first letter of each word for display
+                    const displayName = ex.normalized
+                        .split(' ')
+                        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                        .join(' ');
+                    return `<option value="${ex.normalized}">${displayName}</option>`;
+                }).join('');
         }
 
         function renderAnalysis() {
