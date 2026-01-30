@@ -819,6 +819,13 @@
         // Configuration
         const API_URL = 'https://workout-tracker-backend-production-c138.up.railway.app';
         
+        // Timed exercises configuration (measured in seconds instead of reps)
+        const TIMED_EXERCISES = [
+            'Bottoms Up KB Holds',
+            'Ab Isometrics',
+            'Ab Iso Work'
+        ];
+        
         // State
         let sessionId = null;
         let spreadsheetId = null;
@@ -832,6 +839,26 @@
         let syncStatus = 'synced'; // synced, syncing, error
         let sessionUnitMemory = {};
         let lastLoggedSet = null; // Track last set for undo // Tracks last used unit per exercise in current session
+
+        // Helper: Normalize exercise name for matching (strips parentheticals and asterisks)
+        function normalizeExerciseName(name) {
+            return name
+                .replace(/\*/g, '') // Remove stars
+                .replace(/\s*\([^)]*\)/g, '') // Remove anything in parentheses
+                .trim()
+                .toLowerCase();
+        }
+
+        // Helper: Check if exercise is timed (measured in seconds)
+        function isTimedExercise(exerciseName) {
+            const normalized = normalizeExerciseName(exerciseName);
+            return TIMED_EXERCISES.some(timed => normalizeExerciseName(timed) === normalized);
+        }
+
+        // Helper: Get display name (strip star but keep parentheses)
+        function getExerciseDisplayName(name) {
+            return name.replace(/\*/g, '').trim();
+        }
 
         // Initialize
         async function init() {
@@ -1139,19 +1166,16 @@
             `;
         }
 
-        // Helper: Render workout selector with suggestion
-        function renderWorkoutSelector() {
-            const nextWorkout = getNextWorkout();
-            const suggestedClass = (workout) => workout === nextWorkout ? 'suggested' : '';
+        // Helper: Get next workout suggestion based on alternating pattern
+        function getNextWorkout() {
+            if (workoutLog.length === 0) return 'A'; // Default to A if no history
             
-            return `
-                <div class="workout-suggestion-text">Up next: Workout ${nextWorkout}</div>
-                <div class="workout-suggestion-text">Up next: Workout <span id="suggestedWorkout"></span></div>
-                        <div class="workout-selector">
-                    <button class="workout-btn ${suggestedClass('A')}" onclick="selectWorkout('A')">Workout A</button>
-                    <button class="workout-btn ${suggestedClass('B')}" onclick="selectWorkout('B')">Workout B</button>
-                </div>
-            `;
+            // Find the last workout (A or B)
+            const workoutEntries = workoutLog.filter(e => e.workout === 'A' || e.workout === 'B');
+            if (workoutEntries.length === 0) return 'A';
+            
+            const lastWorkout = workoutEntries[workoutEntries.length - 1].workout;
+            return lastWorkout === 'A' ? 'B' : 'A';
         }
 
         function renderApp() {
@@ -1159,7 +1183,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v1.9</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.0</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1273,37 +1297,6 @@
             }
         }
 
-        // UI Functions (rest of the functions from previous version)
-        // Helper: Strip stars and parentheses from exercise names for normalization
-        function normalizeExerciseName(name) {
-            return name
-                .replace(/\*/g, '') // Remove stars
-                .replace(/\s*\([^)]*\)/g, '') // Remove anything in parentheses
-                .trim();
-        }
-
-        // Helper: Check if exercise is marked as doubled weight (has star)
-        function isDoubledWeightExercise(name) {
-            return name.includes('*');
-        }
-
-        // Helper: Get display name (strip star but keep parentheses)
-        function getExerciseDisplayName(name) {
-            return name.replace(/\*/g, '').trim();
-        }
-
-        // Helper: Get next workout suggestion based on alternating pattern
-        function getNextWorkout() {
-            if (workoutLog.length === 0) return 'A'; // Default to A if no history
-            
-            // Find the last workout (A or B)
-            const workoutEntries = workoutLog.filter(e => e.workout === 'A' || e.workout === 'B');
-            if (workoutEntries.length === 0) return 'A';
-            
-            const lastWorkout = workoutEntries[workoutEntries.length - 1].workout;
-            return lastWorkout === 'A' ? 'B' : 'A';
-        }
-
         function switchTab(tabName) {
             currentView = tabName;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1334,35 +1327,37 @@
             
             // Get today's date for filtering
             const today = new Date().toDateString();
-            
-            // Find the last exercise that was logged today (for "current" highlighting)
-            let lastLoggedExercise = null;
             const todayLog = workoutLog.filter(entry => 
                 new Date(entry.date).toDateString() === today &&
                 entry.workout === currentWorkout
             );
-            if (todayLog.length > 0) {
-                lastLoggedExercise = todayLog[todayLog.length - 1].exercise;
+            
+            // Find the NEXT exercise to do (first one with <3 sets) - FIXED HIGHLIGHTING
+            let nextExerciseIdx = -1;
+            for (let i = 0; i < exercises.length; i++) {
+                const exerciseName = exercises[i];
+                const todaySets = todayLog.filter(e => e.exercise === exerciseName);
+                if (todaySets.length < 3) {
+                    nextExerciseIdx = i;
+                    break;
+                }
             }
             
             const exercisesHTML = exercises.map((exercise, idx) => {
+                const isTimed = isTimedExercise(exercise);
                 const lastSets = getLastSetsForExercise(exercise);
                 const lastWorkout = lastSets.length > 0 ? 
-                    `Last: ${lastSets.map(s => formatWeight(s)).join(', ')}` : 
+                    `Last: ${lastSets.map(s => formatWeight(s, isTimed)).join(', ')}` : 
                     'No previous data';
                 
                 // Get today's sets for this exercise
-                const todaySets = workoutLog.filter(entry => 
-                    new Date(entry.date).toDateString() === today && 
-                    entry.exercise === exercise
-                );
+                const todaySets = todayLog.filter(entry => entry.exercise === exercise);
                 
-                // Determine CSS classes
+                // Determine CSS classes - FIXED LOGIC
                 let cssClasses = 'exercise-item';
                 if (todaySets.length >= 3) {
                     cssClasses += ' completed';
-                }
-                if (exercise === lastLoggedExercise) {
+                } else if (idx === nextExerciseIdx) {
                     cssClasses += ' current';
                 }
                 
@@ -1370,10 +1365,13 @@
                 const setCount = todaySets.length;
                 const setBadge = setCount > 0 ? `<span class="set-badge">${setCount}/3</span>` : '';
                 
-                let placeholder = 'Weight (blank=BW)';
+                // Placeholder text
+                let placeholder = isTimed ? 'Time (seconds)' : 'Weight (blank=BW)';
                 if (todaySets.length > 0) {
                     const lastSet = todaySets[todaySets.length - 1];
-                    if (lastSet.unit === 'BW') {
+                    if (isTimed) {
+                        placeholder = `→ ${lastSet.reps}s`;
+                    } else if (lastSet.unit === 'BW') {
                         placeholder = '→ BW';
                     } else if (lastSet.weight > 0) {
                         placeholder = `→ ${lastSet.weight} ${lastSet.unit}`;
@@ -1384,18 +1382,21 @@
                 
                 // Format today's sets for display
                 const todaySetsDisplay = todaySets.length > 0 
-                    ? `<strong>Today:</strong> ${todaySets.map((s, i) => `Set ${i + 1}: ${formatWeight(s)}`).join(' | ')}`
+                    ? `<strong>Today:</strong> ${todaySets.map((s, i) => `Set ${i + 1}: ${formatWeight(s, isTimed)}`).join(' | ')}`
                     : '';
+                
+                // Input label
+                const inputLabel = isTimed ? 'Time' : 'Reps';
                 
                 return `
                     <div class="${cssClasses}">
                         <div class="exercise-name">${exercise} ${setBadge}</div>
                         <div class="last-workout">${lastWorkout}</div>
                         <div class="set-input">
-                            <input type="number" id="reps-${idx}" placeholder="Reps" min="1" style="flex: 0 0 80px;" />
+                            <input type="number" id="reps-${idx}" placeholder="${inputLabel}" min="1" style="flex: 0 0 80px;" />
                             <div class="weight-input-wrapper">
                                 <span id="preview-${idx}" class="weight-preview"></span>
-                                <input type="text" id="weight-${idx}" placeholder="${placeholder}" oninput="updateWeightPreview(${idx}, '${exercise.replace(/'/g, "\\'")}')"/>
+                                <input type="text" id="weight-${idx}" placeholder="${placeholder}" ${isTimed ? 'disabled style="opacity: 0.5;"' : `oninput="updateWeightPreview(${idx}, '${exercise.replace(/'/g, "\\'")}')"`}/>
                             </div>
                             <button onclick="logSet('${exercise.replace(/'/g, "\\'")}', ${idx})">Log</button>
                         </div>
@@ -1404,7 +1405,7 @@
                                 ↶ Undo Last Set
                             </button>
                         ` : ''}
-                        <div class="weight-hint">Ex: 25, 25 kg, red, NA</div>
+                        <div class="weight-hint">${isTimed ? 'Enter time in seconds' : 'Ex: 25, 25 kg, red, NA'}</div>
                         <div class="logged-sets" id="logged-${idx}">${todaySetsDisplay}</div>
                     </div>
                 `;
@@ -1420,7 +1421,12 @@
         }
 
         // Helper function to format weight display
-        function formatWeight(set) {
+        function formatWeight(set, isTimed = false) {
+            if (isTimed) {
+                // For timed exercises, show seconds
+                return `${set.reps}s`;
+            }
+            
             const reps = `${set.reps} reps`;
             
             if (!set.weight || set.weight === 0 || set.unit === 'BW' || set.unit === 'bodyweight') {
@@ -1449,7 +1455,12 @@
         }
 
         // Smart weight parser with session memory and previous set defaults
-        function parseWeight(input, exercise) {
+        function parseWeight(input, exercise, isTimed = false) {
+            // For timed exercises, weight is always 0 and unit is "seconds"
+            if (isTimed) {
+                return { weight: 0, unit: 'seconds' };
+            }
+            
             // Check if this exercise has sets logged today
             const today = new Date().toDateString();
             const todaySets = workoutLog.filter(entry => 
@@ -1618,7 +1629,6 @@
             return context.measureText(text).width;
         }
 
-
         function undoLastSet() {
             if (!lastLoggedSet) return;
             
@@ -1636,21 +1646,24 @@
         }
 
         async function logSet(exercise, idx) {
-            const reps = document.getElementById(`reps-${idx}`).value;
-            const weightInput = document.getElementById(`weight-${idx}`).value;
+            const isTimed = isTimedExercise(exercise);
+            const repsInput = document.getElementById(`reps-${idx}`);
+            const weightInput = document.getElementById(`weight-${idx}`);
             
-            if (!reps) {
-                alert('Please enter reps');
+            const repsOrTime = repsInput.value;
+            
+            if (!repsOrTime) {
+                alert(isTimed ? 'Please enter time in seconds' : 'Please enter reps');
                 return;
             }
 
-            const parsed = parseWeight(weightInput, exercise);
+            const parsed = parseWeight(weightInput.value, exercise, isTimed);
 
             const setData = {
                 date: new Date().toISOString(),
                 workout: currentWorkout,
                 exercise: exercise,
-                reps: parseInt(reps),
+                reps: parseInt(repsOrTime),
                 weight: parsed.weight,
                 unit: parsed.unit
             };
@@ -1667,30 +1680,20 @@
             saveToLocalStorage();
             await addEntry(setData);
             
-            // Re-render exercises to update placeholders
+            // Re-render exercises to update placeholders and highlighting
             renderExercises();
             updateHeaderStats();
         }
 
-        function updateLoggedSets(idx) {
-            const today = new Date().toDateString();
-            const todaySets = workoutLog.filter(entry => 
-                new Date(entry.date).toDateString() === today
+        function getLastSetsForExercise(exercise) {
+            // Normalize the exercise name for matching
+            const normalizedName = normalizeExerciseName(exercise);
+            
+            // Find all sets that match (using normalized names)
+            const exerciseSets = workoutLog.filter(e => 
+                normalizeExerciseName(e.exercise) === normalizedName
             );
             
-            const container = document.getElementById(`logged-${idx}`);
-            const exercise = workouts[currentWorkout][idx];
-            const sets = todaySets.filter(s => s.exercise === exercise);
-            
-            if (sets.length > 0) {
-                container.innerHTML = `<strong>Today:</strong> ${sets.map((s, i) => 
-                    `Set ${i + 1}: ${formatWeight(s)}`
-                ).join(' | ')}`;
-            }
-        }
-
-        function getLastSetsForExercise(exercise) {
-            const exerciseSets = workoutLog.filter(e => e.exercise === exercise);
             if (exerciseSets.length === 0) return [];
             
             const today = new Date().toDateString();
@@ -1726,7 +1729,7 @@
             }
         }
 
-        // Analysis functions (same as before)
+        // Analysis functions
         function populateExerciseSelector() {
             const select = document.getElementById('exerciseSelect');
             
@@ -1778,12 +1781,16 @@
                 return;
             }
 
-            const exerciseData = workoutLog.filter(e => normalizeExerciseName(e.exercise) === exercise);
+            // Filter exercise data using normalized names, excluding deload sessions
+            const exerciseData = workoutLog.filter(e => 
+                normalizeExerciseName(e.exercise) === exercise &&
+                (!e.deload || e.deload !== 'Yes') // Exclude deload sessions
+            );
             
             if (exerciseData.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">ðŸ“</div>
+                        <div class="empty-state-icon">📉</div>
                         <p>No data yet for this exercise</p>
                     </div>
                 `;
@@ -1934,7 +1941,7 @@
             if (workoutLog.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">ðŸ“…</div>
+                        <div class="empty-state-icon">📅</div>
                         <p>No workouts logged yet</p>
                     </div>
                 `;
@@ -1955,9 +1962,15 @@
                 
                 entries.forEach(e => {
                     if (!exerciseSummary[e.exercise]) exerciseSummary[e.exercise] = [];
-                    // Format each set properly (shows bands, BW, weights with units)
+                    
+                    // Check if this is a timed exercise
+                    const isTimed = isTimedExercise(e.exercise);
+                    
+                    // Format each set properly
                     let setDisplay;
-                    if (!e.weight || e.weight === 0 || e.unit === 'BW') {
+                    if (isTimed) {
+                        setDisplay = `${e.reps}s`;
+                    } else if (!e.weight || e.weight === 0 || e.unit === 'BW') {
                         if (e.unit && e.unit !== 'NA' && e.unit !== 'BW') {
                             // Band colors
                             setDisplay = `${e.reps} (${e.unit})`;
@@ -2041,6 +2054,9 @@
                 btn.classList.remove('selected');
             });
             
+            // Update suggestion for next workout
+            updateWorkoutSuggestion();
+            
             document.getElementById('exerciseList').innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">🏋️</div>
@@ -2051,13 +2067,15 @@
 
         function exportToCSV() {
             const csv = [
-                ['Date', 'Workout', 'Exercise', 'Reps', 'Weight'],
+                ['Date', 'Workout', 'Exercise', 'Reps', 'Weight', 'Unit', 'Deload'],
                 ...workoutLog.map(e => [
                     new Date(e.date).toLocaleString(),
                     e.workout,
                     e.exercise,
                     e.reps,
-                    e.weight
+                    e.weight,
+                    e.unit,
+                    e.deload || ''
                 ])
             ].map(row => row.join(',')).join('\n');
 
