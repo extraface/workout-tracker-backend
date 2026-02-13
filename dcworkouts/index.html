@@ -1053,6 +1053,47 @@
             }
         }
 
+        async function connectToExistingSheet() {
+            const input = document.getElementById('existingSheetId');
+            const sheetId = input.value.trim();
+            
+            if (!sheetId) {
+                alert('Please enter a spreadsheet ID');
+                return;
+            }
+            
+            // Validate it looks like a spreadsheet ID (alphanumeric, ~44 chars)
+            if (sheetId.length < 20 || !/^[a-zA-Z0-9_-]+$/.test(sheetId)) {
+                alert('That doesn\'t look like a valid spreadsheet ID. Please copy the ID from your Google Sheets URL.');
+                return;
+            }
+            
+            try {
+                setSyncStatus('syncing');
+                
+                // Set the spreadsheet ID
+                spreadsheetId = sheetId;
+                localStorage.setItem('spreadsheetId', spreadsheetId);
+                
+                // Try to load data from the sheet to verify it exists and we have access
+                await loadFromSheet();
+                
+                setSyncStatus('synced');
+                alert('Successfully connected to existing sheet!\n\nAll data loaded from spreadsheet.');
+                
+                // Refresh the app to show the connected sheet
+                renderApp();
+                
+            } catch (error) {
+                // Connection failed - clear the ID
+                spreadsheetId = null;
+                localStorage.removeItem('spreadsheetId');
+                setSyncStatus('error');
+                console.error('Connect to sheet error:', error);
+                alert('Failed to connect to that spreadsheet. Please check:\n- The spreadsheet ID is correct\n- You have access to the spreadsheet\n- You\'re signed in with the right Google account');
+            }
+        }
+
         async function loadFromSheet() {
             if (!spreadsheetId || !sessionId) return;
             
@@ -1223,7 +1264,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.4</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.5</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1284,7 +1325,15 @@
                                 <label>Current Sheet ID</label>
                                 <input type="text" value="${spreadsheetId || 'Not set'}" disabled>
                             </div>
-                            ${!spreadsheetId ? '<button class="btn" onclick="createSheet()">Create New Sheet</button>' : ''}
+                            ${!spreadsheetId ? `
+                                <button class="btn" onclick="createSheet()">Create New Sheet</button>
+                                <div style="margin: 16px 0; text-align: center; color: var(--text-secondary);">— OR —</div>
+                                <div class="settings-item">
+                                    <label>Connect to Existing Sheet</label>
+                                    <input type="text" id="existingSheetId" placeholder="Paste spreadsheet ID here" style="margin-bottom: 8px;">
+                                    <button class="btn btn-secondary" onclick="connectToExistingSheet()">Connect</button>
+                                </div>
+                            ` : ''}
                             ${spreadsheetId ? `<a href="https://docs.google.com/spreadsheets/d/${spreadsheetId}" target="_blank" class="btn">Open Sheet</a>` : ''}
                             ${spreadsheetId ? '<button class="btn btn-secondary" onclick="reloadFromSheet()">Reload from Sheet</button>' : ''}
                         </div>
