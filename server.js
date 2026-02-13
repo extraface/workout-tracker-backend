@@ -105,10 +105,10 @@ app.post('/sheets/create', requireAuth, async (req, res) => {
     // Add headers
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'Workouts!A1:F1',
+      range: 'Workouts!A1:H1',
       valueInputOption: 'RAW',
       resource: {
-        values: [['Date', 'Workout', 'Exercise', 'Reps', 'Weight', 'Unit']]
+        values: [['Date', 'Workout', 'Exercise', 'Reps', 'Weight', 'Unit', 'Deload', 'Deleted']]
       }
     });
     
@@ -130,18 +130,22 @@ app.get('/sheets/:spreadsheetId/data', requireAuth, async (req, res) => {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Workouts!A2:F'
+      range: 'Workouts!A2:H'
     });
     
     const rows = response.data.values || [];
-    const workouts = rows.map(row => ({
-      date: row[0],
-      workout: row[1],
-      exercise: row[2],
-      reps: parseInt(row[3]),
-      weight: parseFloat(row[4]),
-      unit: row[5] || 'lbs'
-    }));
+    const workouts = rows
+      .map(row => ({
+        date: row[0],
+        workout: row[1],
+        exercise: row[2],
+        reps: parseInt(row[3]),
+        weight: parseFloat(row[4]),
+        unit: row[5] || 'lbs',
+        deload: row[6] || '',
+        deleted: row[7] || ''
+      }))
+      .filter(w => !w.deleted || w.deleted !== 'Yes'); // Filter out deleted entries
     
     res.json({ workouts });
   } catch (error) {
@@ -154,16 +158,16 @@ app.get('/sheets/:spreadsheetId/data', requireAuth, async (req, res) => {
 app.post('/sheets/:spreadsheetId/entry', requireAuth, async (req, res) => {
   try {
     const { spreadsheetId } = req.params;
-    const { date, workout, exercise, reps, weight, unit } = req.body;
+    const { date, workout, exercise, reps, weight, unit, deload } = req.body;
     
     const sheets = google.sheets({ version: 'v4', auth: req.googleAuth });
     
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Workouts!A:F',
+      range: 'Workouts!A:H',
       valueInputOption: 'RAW',
       resource: {
-        values: [[date, workout, exercise, reps, weight, unit || 'lbs']]
+        values: [[date, workout, exercise, reps, weight, unit || 'lbs', deload || '', '']]
       }
     });
     
@@ -171,6 +175,59 @@ app.post('/sheets/:spreadsheetId/entry', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error adding entry:', error);
     res.status(500).json({ error: 'Failed to add entry' });
+  }
+});
+
+// Mark entry as deleted (for undo functionality)
+app.post('/sheets/:spreadsheetId/mark-deleted', requireAuth, async (req, res) => {
+  try {
+    const { spreadsheetId } = req.params;
+    const { date, workout, exercise, reps, weight, unit } = req.body;
+    
+    const sheets = google.sheets({ version: 'v4', auth: req.googleAuth });
+    
+    // Load all data to find the matching row
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Workouts!A2:H'
+    });
+    
+    const rows = response.data.values || [];
+    
+    // Find the row that matches (search from bottom up to get most recent)
+    let rowIndex = -1;
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const row = rows[i];
+      if (row[0] === date &&
+          row[1] === workout &&
+          row[2] === exercise &&
+          parseInt(row[3]) === reps &&
+          parseFloat(row[4]) === weight &&
+          row[5] === unit &&
+          (!row[7] || row[7] !== 'Yes')) { // Not already deleted
+        rowIndex = i + 2; // +2 because rows are 0-indexed and we start from row 2
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+    
+    // Mark as deleted
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `Workouts!H${rowIndex}`,
+      valueInputOption: 'RAW',
+      resource: {
+        values: [['Yes']]
+      }
+    });
+    
+    res.json({ success: true, rowIndex });
+  } catch (error) {
+    console.error('Error marking entry as deleted:', error);
+    res.status(500).json({ error: 'Failed to mark entry as deleted' });
   }
 });
 

@@ -1273,7 +1273,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.6</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.7</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1755,8 +1755,24 @@
             return context.measureText(text).width;
         }
 
-        function undoLastSet() {
+        async function undoLastSet() {
             if (!lastLoggedSet) return;
+            
+            // Mark as deleted in Google Sheets
+            if (spreadsheetId && sessionId) {
+                try {
+                    setSyncStatus('syncing');
+                    await apiCall(`/sheets/${spreadsheetId}/mark-deleted`, {
+                        method: 'POST',
+                        body: JSON.stringify(lastLoggedSet.data)
+                    });
+                    setSyncStatus('synced');
+                } catch (error) {
+                    console.error('Failed to mark as deleted in sheet:', error);
+                    setSyncStatus('error');
+                    alert('Warning: Removed locally but failed to mark as deleted in Google Sheets. You may need to manually delete this row.');
+                }
+            }
             
             // Remove the set from the log
             workoutLog.splice(lastLoggedSet.index, 1);
