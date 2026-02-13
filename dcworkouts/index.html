@@ -276,6 +276,36 @@
             font-weight: 700;
         }
 
+        .deload-container {
+            display: none;
+            margin: -12px 0 16px 0;
+            padding: 12px;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 8px;
+        }
+
+        .deload-checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .deload-checkbox-wrapper input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .deload-checkbox-wrapper label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #c2410c;
+            cursor: pointer;
+            user-select: none;
+        }
+
         .workout-suggestion-text {
             text-align: center;
             color: var(--text-secondary);
@@ -821,9 +851,13 @@
         
         // Timed exercises configuration (measured in seconds instead of reps)
         const TIMED_EXERCISES = [
-            'Bottoms Up KB Holds',
             'Ab Isometrics',
             'Ab Iso Work'
+        ];
+        
+        // Exercises that need BOTH time and weight (like holding two kettlebells)
+        const TIMED_WITH_WEIGHT_EXERCISES = [
+            'Bottoms Up KB Holds'
         ];
         
         // State
@@ -853,6 +887,12 @@
         function isTimedExercise(exerciseName) {
             const normalized = normalizeExerciseName(exerciseName);
             return TIMED_EXERCISES.some(timed => normalizeExerciseName(timed) === normalized);
+        }
+        
+        // Check if exercise needs both time AND weight
+        function isTimedWithWeight(exerciseName) {
+            const normalized = normalizeExerciseName(exerciseName);
+            return TIMED_WITH_WEIGHT_EXERCISES.some(timed => normalizeExerciseName(timed) === normalized);
         }
 
         // Helper: Get display name (strip star but keep parentheses)
@@ -1183,7 +1223,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.1</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.2</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1204,6 +1244,12 @@
                         <div class="workout-selector">
                             <button class="workout-btn" id="workoutBtnA" onclick="selectWorkout('A')">Workout A</button>
                             <button class="workout-btn" id="workoutBtnB" onclick="selectWorkout('B')">Workout B</button>
+                        </div>
+                        <div id="deloadContainer" class="deload-container">
+                            <div class="deload-checkbox-wrapper">
+                                <input type="checkbox" id="deloadCheckbox">
+                                <label for="deloadCheckbox">🔻 This is a deload session</label>
+                            </div>
                         </div>
                         <div id="exerciseList">
                             <div class="empty-state">
@@ -1318,6 +1364,13 @@
                 btn.classList.remove('selected');
             });
             event.target.classList.add('selected');
+            
+            // Show deload checkbox
+            const deloadContainer = document.getElementById('deloadContainer');
+            if (deloadContainer) {
+                deloadContainer.style.display = 'block';
+            }
+            
             renderExercises();
         }
 
@@ -1345,9 +1398,10 @@
             
             const exercisesHTML = exercises.map((exercise, idx) => {
                 const isTimed = isTimedExercise(exercise);
+                const isTimedWeight = isTimedWithWeight(exercise);
                 const lastSets = getLastSetsForExercise(exercise);
                 const lastWorkout = lastSets.length > 0 ? 
-                    `Last: ${lastSets.map(s => formatWeight(s, isTimed)).join(', ')}` : 
+                    `Last: ${lastSets.map(s => formatWeight(s, isTimed || isTimedWeight)).join(', ')}` : 
                     'No previous data';
                 
                 // Get today's sets for this exercise
@@ -1366,10 +1420,10 @@
                 const setBadge = setCount > 0 ? `<span class="set-badge">${setCount}/3</span>` : '';
                 
                 // Placeholder text
-                let placeholder = isTimed ? 'Time (seconds)' : 'Weight (blank=BW)';
+                let placeholder = isTimedWeight ? 'Weight (e.g., 8 kg)' : (isTimed ? 'Time (seconds)' : 'Weight (blank=BW)');
                 if (todaySets.length > 0) {
                     const lastSet = todaySets[todaySets.length - 1];
-                    if (isTimed) {
+                    if (isTimed || isTimedWeight) {
                         placeholder = `→ ${lastSet.reps}s`;
                     } else if (lastSet.unit === 'BW') {
                         placeholder = '→ BW';
@@ -1382,11 +1436,14 @@
                 
                 // Format today's sets for display
                 const todaySetsDisplay = todaySets.length > 0 
-                    ? `<strong>Today:</strong> ${todaySets.map((s, i) => `Set ${i + 1}: ${formatWeight(s, isTimed)}`).join(' | ')}`
+                    ? `<strong>Today:</strong> ${todaySets.map((s, i) => `Set ${i + 1}: ${formatWeight(s, isTimed || isTimedWeight)}`).join(' | ')}`
                     : '';
                 
                 // Input label
-                const inputLabel = isTimed ? 'Time' : 'Reps';
+                const inputLabel = (isTimed || isTimedWeight) ? 'Time' : 'Reps';
+                
+                // Weight input behavior
+                const weightDisabled = isTimed && !isTimedWeight; // Disable only for pure timed (not timed-with-weight)
                 
                 return `
                     <div class="${cssClasses}">
@@ -1396,7 +1453,7 @@
                             <input type="number" id="reps-${idx}" placeholder="${inputLabel}" min="1" style="flex: 0 0 80px;" />
                             <div class="weight-input-wrapper">
                                 <span id="preview-${idx}" class="weight-preview"></span>
-                                <input type="text" id="weight-${idx}" placeholder="${placeholder}" ${isTimed ? 'disabled style="opacity: 0.5;"' : `oninput="updateWeightPreview(${idx}, '${exercise.replace(/'/g, "\\'")}')"`}/>
+                                <input type="text" id="weight-${idx}" placeholder="${placeholder}" ${weightDisabled ? 'disabled style="opacity: 0.5;"' : `oninput="updateWeightPreview(${idx}, '${exercise.replace(/'/g, "\\'")}')"`}/>
                             </div>
                             <button onclick="logSet('${exercise.replace(/'/g, "\\'")}', ${idx})">Log</button>
                         </div>
@@ -1405,7 +1462,7 @@
                                 ↶ Undo Last Set
                             </button>
                         ` : ''}
-                        <div class="weight-hint">${isTimed ? 'Enter time in seconds' : 'Ex: 25, 25 kg, red, NA'}</div>
+                        <div class="weight-hint">${isTimedWeight ? 'Time in seconds, weight per KB' : (isTimed ? 'Enter time in seconds' : 'Ex: 25, 25 kg, red, NA')}</div>
                         <div class="logged-sets" id="logged-${idx}">${todaySetsDisplay}</div>
                     </div>
                 `;
@@ -1422,12 +1479,30 @@
 
         // Helper function to format weight display
         function formatWeight(set, isTimed = false) {
+            // Check if this is a timed-with-weight exercise
+            const isTimedWeight = set.unit && !['BW', 'NA', 'seconds', 'bodyweight', 'n/a'].includes(set.unit) && 
+                                 (set.weight > 0) && 
+                                 isTimed;
+            
+            if (isTimedWeight) {
+                // For timed-with-weight exercises like KB holds: "45s @ 2×8 kg"
+                // Double the weight for display since they're holding 2 KBs
+                return `${set.reps}s @ 2×${set.weight} ${set.unit}`;
+            }
+            
             if (isTimed) {
-                // For timed exercises, show seconds
+                // For pure timed exercises, show seconds
                 return `${set.reps}s`;
             }
             
             const reps = `${set.reps} reps`;
+            
+            // Check for band colors FIRST (before BW check) - FIX for band display bug
+            const bandColors = ['red', 'blue', 'black', 'green', 'purple', 'yellow', 'orange'];
+            const unitLower = (set.unit || '').toLowerCase();
+            if (bandColors.some(color => unitLower.includes(color))) {
+                return `${reps} (${set.unit})`;
+            }
             
             if (!set.weight || set.weight === 0 || set.unit === 'BW' || set.unit === 'bodyweight') {
                 return `${reps} (BW)`;
@@ -1435,13 +1510,6 @@
             
             if (!set.unit || set.unit === 'NA' || set.unit === 'n/a') {
                 return reps;
-            }
-            
-            // Band colors
-            const bandColors = ['red', 'blue', 'black', 'green', 'purple', 'yellow', 'orange'];
-            const unitLower = set.unit.toLowerCase();
-            if (bandColors.some(color => unitLower.includes(color))) {
-                return `${reps} (${set.unit})`;
             }
             
             // Check if this is a doubled weight format (e.g., "2×25 lbs")
@@ -1647,17 +1715,19 @@
 
         async function logSet(exercise, idx) {
             const isTimed = isTimedExercise(exercise);
+            const isTimedWeight = isTimedWithWeight(exercise);
             const repsInput = document.getElementById(`reps-${idx}`);
             const weightInput = document.getElementById(`weight-${idx}`);
+            const deloadCheckbox = document.getElementById('deloadCheckbox');
             
             const repsOrTime = repsInput.value;
             
             if (!repsOrTime) {
-                alert(isTimed ? 'Please enter time in seconds' : 'Please enter reps');
+                alert((isTimed || isTimedWeight) ? 'Please enter time in seconds' : 'Please enter reps');
                 return;
             }
 
-            const parsed = parseWeight(weightInput.value, exercise, isTimed);
+            const parsed = parseWeight(weightInput.value, exercise, isTimed && !isTimedWeight);
 
             const setData = {
                 date: new Date().toISOString(),
@@ -1665,7 +1735,8 @@
                 exercise: exercise,
                 reps: parseInt(repsOrTime),
                 weight: parsed.weight,
-                unit: parsed.unit
+                unit: parsed.unit,
+                deload: deloadCheckbox && deloadCheckbox.checked ? 'Yes' : ''
             };
 
             workoutLog.push(setData);
@@ -2051,6 +2122,16 @@
             // Clear session memory and undo state
             sessionUnitMemory = {};
             lastLoggedSet = null;
+            
+            // Reset and hide deload checkbox
+            const deloadCheckbox = document.getElementById('deloadCheckbox');
+            const deloadContainer = document.getElementById('deloadContainer');
+            if (deloadCheckbox) {
+                deloadCheckbox.checked = false;
+            }
+            if (deloadContainer) {
+                deloadContainer.style.display = 'none';
+            }
             
             // Show summary
             alert(`Workout ${currentWorkout} Complete! 🎉\n\n${exerciseCount} exercises\n${setCount} sets logged today`);
