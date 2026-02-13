@@ -1223,7 +1223,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.2</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.3</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -2156,15 +2156,20 @@
         function exportToCSV() {
             const csv = [
                 ['Date', 'Workout', 'Exercise', 'Reps', 'Weight', 'Unit', 'Deload'],
-                ...workoutLog.map(e => [
-                    new Date(e.date).toLocaleString(),
-                    e.workout,
-                    e.exercise,
-                    e.reps,
-                    e.weight,
-                    e.unit,
-                    e.deload || ''
-                ])
+                ...workoutLog.map(e => {
+                    // Format date as "MM/DD/YYYY HH:MM:SS AM/PM" (no comma)
+                    const date = new Date(e.date);
+                    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+                    return [
+                        dateStr,
+                        e.workout,
+                        e.exercise,
+                        e.reps,
+                        e.weight,
+                        e.unit,
+                        e.deload || ''
+                    ];
+                })
             ].map(row => row.join(',')).join('\n');
 
             const blob = new Blob([csv], { type: 'text/csv' });
