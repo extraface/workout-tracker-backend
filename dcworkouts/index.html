@@ -1079,10 +1079,19 @@
                 await loadFromSheet();
                 
                 setSyncStatus('synced');
-                alert('Successfully connected to existing sheet!\n\nAll data loaded from spreadsheet.');
+                
+                const count = workoutLog.length;
+                alert(`Successfully connected!\n\nLoaded ${count} workout entries from spreadsheet.`);
                 
                 // Refresh the app to show the connected sheet
-                renderApp();
+                try {
+                    renderApp();
+                } catch (renderError) {
+                    console.error('Render error after connect:', renderError);
+                    // Connection succeeded even if render failed
+                    // Just reload the page
+                    window.location.reload();
+                }
                 
             } catch (error) {
                 // Connection failed - clear the ID
@@ -1264,7 +1273,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.5</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.6</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
