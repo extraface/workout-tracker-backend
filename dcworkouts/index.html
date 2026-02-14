@@ -1273,7 +1273,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.7</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.8</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1462,6 +1462,12 @@
                     `Last: ${lastSets.map(s => formatWeight(s, isTimed || isTimedWeight)).join(', ')}` : 
                     'No previous data';
                 
+                // Get peak weight for this exercise
+                const peakSet = getPeakWeightForExercise(exercise);
+                const peakDisplay = peakSet ? 
+                    `Peak: ${formatWeight(peakSet, isTimed || isTimedWeight)} (${new Date(peakSet.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})` : 
+                    '';
+                
                 // Get today's sets for this exercise
                 const todaySets = todayLog.filter(entry => entry.exercise === exercise);
                 
@@ -1507,6 +1513,7 @@
                     <div class="${cssClasses}">
                         <div class="exercise-name">${exercise} ${setBadge}</div>
                         <div class="last-workout">${lastWorkout}</div>
+                        ${peakDisplay ? `<div class="peak-workout" style="font-size: 12px; color: #059669; margin-top: 2px; margin-bottom: 8px;">💪 ${peakDisplay}</div>` : ''}
                         <div class="set-input">
                             <input type="number" id="reps-${idx}" placeholder="${inputLabel}" min="1" style="flex: 0 0 80px;" />
                             <div class="weight-input-wrapper">
@@ -1850,6 +1857,36 @@
             
             const lastWorkout = new Date(previousWorkouts[previousWorkouts.length - 1].date).toDateString();
             return previousWorkouts.filter(e => new Date(e.date).toDateString() === lastWorkout);
+        }
+
+        function getPeakWeightForExercise(exercise) {
+            // Normalize the exercise name for matching
+            const normalizedName = normalizeExerciseName(exercise);
+            
+            // Find all sets that match (using normalized names)
+            const exerciseSets = workoutLog.filter(e => 
+                normalizeExerciseName(e.exercise) === normalizedName
+            );
+            
+            if (exerciseSets.length === 0) return null;
+            
+            // Filter out bodyweight, NA, and band exercises (only track numeric weights)
+            const weightedSets = exerciseSets.filter(e => 
+                e.weight && 
+                e.weight > 0 && 
+                e.unit && 
+                !['BW', 'NA', 'bodyweight', 'n/a'].includes(e.unit) &&
+                !e.unit.toLowerCase().includes('band')
+            );
+            
+            if (weightedSets.length === 0) return null;
+            
+            // Find the set with maximum weight
+            const peakSet = weightedSets.reduce((max, current) => {
+                return current.weight > max.weight ? current : max;
+            });
+            
+            return peakSet;
         }
 
         function updateHeaderStats() {
