@@ -19,8 +19,7 @@ A seamless workout tracking app that syncs automatically to Google Sheets. Built
 ### Prerequisites
 - Google account
 - Railway account (free tier)
-- Netlify account (free tier)
-- GitHub account
+- GitHub account (for hosting via GitHub Pages)
 
 ### Setup (15-20 minutes)
 Follow the detailed instructions in `SETUP_GUIDE.md`
@@ -478,7 +477,7 @@ Log each exercise separately as you complete it. The app shows today's logged se
 - **Auth**: OAuth 2.0 with Google Identity Services
 
 ### URLs (Configuration)
-- Frontend: `https://dcworkouts.netlify.app`
+- Frontend: `https://extraface.github.io/workout-tracker-backend/`
 - Backend: `https://workout-tracker-backend-production-c138.up.railway.app`
 
 ### Storage Limits
@@ -554,7 +553,7 @@ Since this is a personal project, there's no formal issue tracker. Common soluti
 
 ### Making Changes
 Both frontend and backend are easily modifiable:
-- Frontend: Update `index.html` and redeploy to Netlify
+- Frontend: Update `index.html` and push to GitHub (auto-deploys via GitHub Pages)
 - Backend: Update `server.js`, push to GitHub, Railway auto-deploys
 - Workouts: Edit directly in app Settings (no code changes needed)
 
@@ -566,13 +565,13 @@ Personal project - use as you wish!
 
 Built with:
 - Google Sheets API
-- Railway (hosting)
-- Netlify (hosting)
+- Railway (backend hosting)
+- GitHub Pages (frontend hosting)
 - Express.js
 - Google OAuth 2.0
 
 ---
 
-**Current Version:** v1.8  
-**Last Updated:** January 2026  
-**Deployed at:** https://dcworkouts.netlify.app
+**Current Version:** v2.8  
+**Last Updated:** February 2026  
+**Deployed at:** https://extraface.github.io/workout-tracker-backend/
