@@ -862,7 +862,7 @@
         
         // State
         let sessionId = null;
-        let spreadsheetId = null;
+        let spreadsheetId = localStorage.getItem('spreadsheetId') || '1mvQLF5tHtR_ivU_aKfyIX54irHlGZCvdlxqJAt8KHh0';
         let workouts = {
             A: ['Goblet Squats', 'Band Pullaparts overhand', 'Band Pullaparts underhand', 'Kettlebell RDLs', 'Flat Bench Press*', 'Seated Leg Cable Extensions Left', 'Seated Leg Cable Extensions Right', 'Calf Raises', 'Lat Raise Front Side Superset*', 'Ab Isometrics', 'Face Pulls', 'Cable Fly'],
             B: ['Decline Pushups', 'Hammer Pullovers', 'Swiss Ball T, W, & M', 'Shoulder Press', 'Curls', 'Band Pullaparts (Palms Up)', 'Band Pullaparts (Palms Down)', 'Lat Raise Front/Side Superset*', 'Tricep Pulldowns', 'Bottoms Up KB Holds*', 'Face Pulls', 'Ab Iso Work']
@@ -1273,7 +1273,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.9</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.10</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
