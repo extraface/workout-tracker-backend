@@ -864,8 +864,8 @@
         let sessionId = null;
         let spreadsheetId = null;
         let workouts = {
-            A: ['Goblet Squats', 'Band Pullaparts', 'Kettlebell RDLs', 'Flat Bench Press', 'Front & Side Shoulder Raises', 'Incline or Cable Fly', 'Calf Raises', 'Pull-ups', 'Ab Isometrics'],
-            B: ['Incline/Decline Pushups or Pull-ups', 'Hammer Pullovers', 'Swiss Ball T, W, & M', 'Shoulder Press (Purple Band)', 'Curls (18 lb DBs)', 'Band Pullaparts (Palms Up)', 'Band Pullaparts (Palms Down)', 'Lat Raise Front/Side Superset (10 lb DBs)', 'Tricep Extensions (12 lb DB)', 'Bottoms Up KB Holds (8 kg)', 'Face Pulls (20 lb Band)', 'Ab Iso Work']
+            A: ['Goblet Squats', 'Band Pullaparts overhand', 'Band Pullaparts underhand', 'Kettlebell RDLs', 'Flat Bench Press*', 'Seated Leg Cable Extensions Left', 'Seated Leg Cable Extensions Right', 'Calf Raises', 'Lat Raise Front Side Superset*', 'Ab Isometrics', 'Face Pulls', 'Cable Fly'],
+            B: ['Decline Pushups', 'Hammer Pullovers', 'Swiss Ball T, W, & M', 'Shoulder Press', 'Curls', 'Band Pullaparts (Palms Up)', 'Band Pullaparts (Palms Down)', 'Lat Raise Front/Side Superset*', 'Tricep Pulldowns', 'Bottoms Up KB Holds*', 'Face Pulls', 'Ab Iso Work']
         };
         let workoutLog = [];
         let currentWorkout = null;
@@ -1273,7 +1273,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.8</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.9</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1483,18 +1483,21 @@
                 const setCount = todaySets.length;
                 const setBadge = setCount > 0 ? `<span class="set-badge">${setCount}/3</span>` : '';
                 
-                // Placeholder text
+                // Placeholder text and pre-fill value
                 let placeholder = isTimedWeight ? 'Weight (e.g., 8 kg)' : (isTimed ? 'Time (seconds)' : 'Weight (blank=BW)');
+                let prefillWeight = '';
+                let prefillReps = '';
                 if (todaySets.length > 0) {
                     const lastSet = todaySets[todaySets.length - 1];
                     if (isTimed || isTimedWeight) {
-                        placeholder = `→ ${lastSet.reps}s`;
+                        prefillReps = lastSet.reps;
+                        if (isTimedWeight && lastSet.weight > 0) prefillWeight = `${lastSet.weight} ${lastSet.unit}`;
                     } else if (lastSet.unit === 'BW') {
-                        placeholder = '→ BW';
+                        prefillWeight = 'BW';
                     } else if (lastSet.weight > 0) {
-                        placeholder = `→ ${lastSet.weight} ${lastSet.unit}`;
+                        prefillWeight = `${lastSet.weight} ${lastSet.unit}`;
                     } else if (lastSet.unit && lastSet.unit !== 'NA') {
-                        placeholder = `→ ${lastSet.unit}`;
+                        prefillWeight = lastSet.unit;
                     }
                 }
                 
@@ -1515,10 +1518,10 @@
                         <div class="last-workout">${lastWorkout}</div>
                         ${peakDisplay ? `<div class="peak-workout" style="font-size: 12px; color: #059669; margin-top: 2px; margin-bottom: 8px;">💪 ${peakDisplay}</div>` : ''}
                         <div class="set-input">
-                            <input type="number" id="reps-${idx}" placeholder="${inputLabel}" min="1" style="flex: 0 0 80px;" />
+                            <input type="number" id="reps-${idx}" placeholder="${inputLabel}" min="1" style="flex: 0 0 80px;" value="${prefillReps}"/>
                             <div class="weight-input-wrapper">
                                 <span id="preview-${idx}" class="weight-preview"></span>
-                                <input type="text" id="weight-${idx}" placeholder="${placeholder}" ${weightDisabled ? 'disabled style="opacity: 0.5;"' : `oninput="updateWeightPreview(${idx}, '${exercise.replace(/'/g, "\\'")}')"`}/>
+                                <input type="text" id="weight-${idx}" placeholder="${placeholder}" value="${prefillWeight}" ${weightDisabled ? 'disabled style="opacity: 0.5;"' : `oninput="updateWeightPreview(${idx}, '${exercise.replace(/'/g, "\\'")}')"`}/>
                             </div>
                             <button onclick="logSet('${exercise.replace(/'/g, "\\'")}', ${idx})">Log</button>
                         </div>
