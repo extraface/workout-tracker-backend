@@ -235,6 +235,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 
 ## Version History
 
+**v2.11** (February 2026) - Fixed peak weight logic to show max reps at max weight, added auto-select on focus to prevent concatenation
+
 **v2.10** (February 2026) - Hardcoded spreadsheet ID as default
 
 **v2.9** (February 2026) - Updated exercise defaults, pre-fill weight inputs to prevent concatenation bug
