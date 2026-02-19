@@ -863,16 +863,13 @@
         // State
         let sessionId = null;
         let spreadsheetId = localStorage.getItem('spreadsheetId') || '1mvQLF5tHtR_ivU_aKfyIX54irHlGZCvdlxqJAt8KHh0';
-        let workouts = {
-            A: ['Goblet Squats', 'Band Pullaparts overhand', 'Band Pullaparts underhand', 'Kettlebell RDLs', 'Flat Bench Press*', 'Seated Leg Cable Extensions Left', 'Seated Leg Cable Extensions Right', 'Calf Raises', 'Lat Raise Front Side Superset*', 'Ab Isometrics', 'Face Pulls', 'Cable Fly'],
-            B: ['Decline Pushups', 'Hammer Pullovers', 'Swiss Ball T, W, & M', 'Shoulder Press', 'Curls', 'Band Pullaparts (Palms Up)', 'Band Pullaparts (Palms Down)', 'Lat Raise Front/Side Superset*', 'Tricep Pulldowns', 'Bottoms Up KB Holds*', 'Face Pulls', 'Ab Iso Work']
-        };
+        let workouts = JSON.parse(localStorage.getItem('workouts')) || { A: [], B: [] };
         let workoutLog = [];
         let currentWorkout = null;
         let currentView = 'log';
         let syncStatus = 'synced'; // synced, syncing, error
         let sessionUnitMemory = {};
-        let lastLoggedSet = null; // Track last set for undo // Tracks last used unit per exercise in current session
+        let lastLoggedSet = null; // Track last set for undo
 
         // Helper: Normalize exercise name for matching (strips parentheticals and asterisks)
         function normalizeExerciseName(name) {
@@ -919,8 +916,13 @@
                 localStorage.setItem('sessionId', sessionId);
                 window.history.replaceState({}, document.title, window.location.pathname);
                 
-                // Load data from sheet
+                // Load config and data from sheet
                 if (spreadsheetId) {
+                    // Try to load config, initialize if doesn't exist
+                    const configLoaded = await loadConfig();
+                    if (!configLoaded) {
+                        await initializeConfig();
+                    }
                     await loadFromSheet();
                 }
                 
@@ -934,6 +936,13 @@
                     const isValid = await checkSession();
                     if (isValid) {
                         if (spreadsheetId) {
+                            // Load config if not cached or empty
+                            if (!workouts.A || workouts.A.length === 0 || !workouts.B || workouts.B.length === 0) {
+                                const configLoaded = await loadConfig();
+                                if (!configLoaded) {
+                                    await initializeConfig();
+                                }
+                            }
                             await loadFromSheet();
                         }
                         renderApp();
@@ -1100,6 +1109,71 @@
                 setSyncStatus('error');
                 console.error('Connect to sheet error:', error);
                 alert('Failed to connect to that spreadsheet. Please check:\n- The spreadsheet ID is correct\n- You have access to the spreadsheet\n- You\'re signed in with the right Google account');
+            }
+        }
+
+        async function loadConfig() {
+            if (!spreadsheetId || !sessionId) return false;
+            
+            try {
+                const result = await apiCall(`/sheets/${spreadsheetId}/config`);
+                if (result.workoutA && result.workoutB) {
+                    workouts.A = result.workoutA;
+                    workouts.B = result.workoutB;
+                    localStorage.setItem('workouts', JSON.stringify(workouts));
+                    console.log('Config loaded from sheet');
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.log('Config not found, will try to initialize');
+                return false;
+            }
+        }
+        
+        async function initializeConfig() {
+            if (!spreadsheetId || !sessionId) return false;
+            
+            try {
+                const result = await apiCall(`/sheets/${spreadsheetId}/config/initialize`, {
+                    method: 'POST'
+                });
+                
+                if (result.workoutA && result.workoutB) {
+                    workouts.A = result.workoutA;
+                    workouts.B = result.workoutB;
+                    localStorage.setItem('workouts', JSON.stringify(workouts));
+                    console.log(`Config initialized: A=${result.workoutA.length} exercises, B=${result.workoutB.length} exercises`);
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error('Failed to initialize config:', error);
+                alert('Warning: Could not load workout config from spreadsheet. Using cached config if available.');
+                return false;
+            }
+        }
+        
+        async function saveConfig() {
+            if (!spreadsheetId || !sessionId) {
+                console.log('Cannot save config - not connected');
+                return false;
+            }
+            
+            try {
+                await apiCall(`/sheets/${spreadsheetId}/config`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        workoutA: workouts.A,
+                        workoutB: workouts.B
+                    })
+                });
+                localStorage.setItem('workouts', JSON.stringify(workouts));
+                console.log('Config saved to sheet');
+                return true;
+            } catch (error) {
+                console.error('Failed to save config:', error);
+                return false;
             }
         }
 
@@ -2208,7 +2282,7 @@
             }).join('');
         }
 
-        function saveWorkoutConfig() {
+        async function saveWorkoutConfig() {
             const workoutA = document.getElementById('workoutAExercises').value
                 .split('\n')
                 .map(e => e.trim())
@@ -2223,7 +2297,14 @@
             workouts.B = workoutB;
             
             saveToLocalStorage();
-            alert('Configuration saved!');
+            
+            // Try to save to Google Sheets
+            const saved = await saveConfig();
+            if (saved) {
+                alert('Configuration saved to app and Google Sheets!');
+            } else {
+                alert('Configuration saved locally. Will sync to Google Sheets when connected.');
+            }
             
             if (currentWorkout) {
                 renderExercises();

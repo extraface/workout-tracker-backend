@@ -307,6 +307,175 @@ app.post('/auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
+// Load workout config from Config tab
+app.get('/sheets/:spreadsheetId/config', requireAuth, async (req, res) => {
+  try {
+    const { spreadsheetId } = req.params;
+    const sheets = google.sheets({ version: 'v4', auth: req.googleAuth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Config!A2:B'
+    });
+    
+    const rows = response.data.values || [];
+    
+    const workoutA = [];
+    const workoutB = [];
+    
+    rows.forEach(row => {
+      if (row && row.length >= 2) {
+        if (row[0] === 'A') workoutA.push(row[1]);
+        if (row[0] === 'B') workoutB.push(row[1]);
+      }
+    });
+    
+    res.json({ workoutA, workoutB });
+  } catch (error) {
+    console.error('Load config error:', error);
+    // Config tab doesn't exist yet
+    res.status(404).json({ error: 'Config not found' });
+  }
+});
+
+// Initialize Config tab from recent workout data
+app.post('/sheets/:spreadsheetId/config/initialize', requireAuth, async (req, res) => {
+  try {
+    const { spreadsheetId } = req.params;
+    const sheets = google.sheets({ version: 'v4', auth: req.googleAuth });
+    
+    // Read workout data
+    const dataResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Workouts!A2:C'
+    });
+    
+    const rows = dataResponse.data.values || [];
+    
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'No workout data found to initialize from' });
+    }
+    
+    // Find most recent A and B workouts
+    const workoutsByType = { A: {}, B: {} };
+    
+    rows.forEach(row => {
+      if (row && row.length >= 3) {
+        const date = new Date(row[0]);
+        const workout = row[1];
+        const exercise = row[2];
+        
+        if ((workout === 'A' || workout === 'B') && !isNaN(date.getTime())) {
+          const dateStr = date.toISOString();
+          if (!workoutsByType[workout][dateStr]) {
+            workoutsByType[workout][dateStr] = new Set();
+          }
+          workoutsByType[workout][dateStr].add(exercise);
+        }
+      }
+    });
+    
+    // Get most recent date for each workout type
+    const getLatestExercises = (workoutType) => {
+      const dates = Object.keys(workoutsByType[workoutType]).sort().reverse();
+      if (dates.length === 0) return [];
+      return Array.from(workoutsByType[workoutType][dates[0]]);
+    };
+    
+    const workoutA = getLatestExercises('A');
+    const workoutB = getLatestExercises('B');
+    
+    if (workoutA.length === 0 && workoutB.length === 0) {
+      return res.status(400).json({ error: 'No exercises found in recent workouts' });
+    }
+    
+    // Create Config sheet
+    try {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        resource: {
+          requests: [{
+            addSheet: {
+              properties: {
+                title: 'Config'
+              }
+            }
+          }]
+        }
+      });
+    } catch (error) {
+      // Sheet might already exist
+      console.log('Config sheet may already exist:', error.message);
+    }
+    
+    // Prepare and write config data
+    const configData = [
+      ['Workout', 'Exercise'],
+      ...workoutA.map(ex => ['A', ex]),
+      ...workoutB.map(ex => ['B', ex])
+    ];
+    
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'Config!A1',
+      valueInputOption: 'RAW',
+      resource: {
+        values: configData
+      }
+    });
+    
+    res.json({ 
+      success: true,
+      workoutA,
+      workoutB
+    });
+  } catch (error) {
+    console.error('Initialize config error:', error);
+    res.status(500).json({ error: 'Failed to initialize config', details: error.message });
+  }
+});
+
+// Update workout config
+app.post('/sheets/:spreadsheetId/config', requireAuth, async (req, res) => {
+  try {
+    const { spreadsheetId } = req.params;
+    const { workoutA, workoutB } = req.body;
+    
+    if (!Array.isArray(workoutA) || !Array.isArray(workoutB)) {
+      return res.status(400).json({ error: 'workoutA and workoutB must be arrays' });
+    }
+    
+    const sheets = google.sheets({ version: 'v4', auth: req.googleAuth });
+    
+    const configData = [
+      ['Workout', 'Exercise'],
+      ...workoutA.map(ex => ['A', ex]),
+      ...workoutB.map(ex => ['B', ex])
+    ];
+    
+    // Clear existing data
+    await sheets.spreadsheets.values.clear({
+      spreadsheetId,
+      range: 'Config!A:B'
+    });
+    
+    // Write new data
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'Config!A1',
+      valueInputOption: 'RAW',
+      resource: {
+        values: configData
+      }
+    });
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update config error:', error);
+    res.status(500).json({ error: 'Failed to update config', details: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
