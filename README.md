@@ -235,6 +235,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 
 ## Version History
 
+**v2.13** (February 2026) - Workout config now stored in Google Sheets Config tab, auto-initialized from recent workouts
+
 **v2.12** (February 2026) - Fixed logout to preserve hardcoded spreadsheet ID
 
 **v2.11** (February 2026) - Fixed peak weight logic to show max reps at max weight, added auto-select on focus to prevent concatenation
