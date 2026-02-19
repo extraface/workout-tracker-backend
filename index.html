@@ -1189,9 +1189,11 @@
             }
             
             sessionId = null;
-            spreadsheetId = null;
             localStorage.removeItem('sessionId');
             localStorage.removeItem('spreadsheetId');
+            
+            // Reset to hardcoded default
+            spreadsheetId = '1mvQLF5tHtR_ivU_aKfyIX54irHlGZCvdlxqJAt8KHh0';
             renderAuthScreen();
         }
 
@@ -1273,7 +1275,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.11</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.12</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
