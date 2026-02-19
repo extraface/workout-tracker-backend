@@ -1273,7 +1273,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.10</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.11</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1518,10 +1518,10 @@
                         <div class="last-workout">${lastWorkout}</div>
                         ${peakDisplay ? `<div class="peak-workout" style="font-size: 12px; color: #059669; margin-top: 2px; margin-bottom: 8px;">💪 ${peakDisplay}</div>` : ''}
                         <div class="set-input">
-                            <input type="number" id="reps-${idx}" placeholder="${inputLabel}" min="1" style="flex: 0 0 80px;" value="${prefillReps}"/>
+                            <input type="number" id="reps-${idx}" placeholder="${inputLabel}" min="1" style="flex: 0 0 80px;" value="${prefillReps}" onfocus="this.select()"/>
                             <div class="weight-input-wrapper">
                                 <span id="preview-${idx}" class="weight-preview"></span>
-                                <input type="text" id="weight-${idx}" placeholder="${placeholder}" value="${prefillWeight}" ${weightDisabled ? 'disabled style="opacity: 0.5;"' : `oninput="updateWeightPreview(${idx}, '${exercise.replace(/'/g, "\\'")}')"`}/>
+                                <input type="text" id="weight-${idx}" placeholder="${placeholder}" value="${prefillWeight}" onfocus="this.select()" ${weightDisabled ? 'disabled style="opacity: 0.5;"' : `oninput="updateWeightPreview(${idx}, '${exercise.replace(/'/g, "\\'")}')"`}/>
                             </div>
                             <button onclick="logSet('${exercise.replace(/'/g, "\\'")}', ${idx})">Log</button>
                         </div>
@@ -1884,9 +1884,15 @@
             
             if (weightedSets.length === 0) return null;
             
-            // Find the set with maximum weight
-            const peakSet = weightedSets.reduce((max, current) => {
-                return current.weight > max.weight ? current : max;
+            // Find the maximum weight
+            const maxWeight = Math.max(...weightedSets.map(e => e.weight));
+            
+            // Get all sets at max weight
+            const maxWeightSets = weightedSets.filter(e => e.weight === maxWeight);
+            
+            // Among sets at max weight, find the one with most reps
+            const peakSet = maxWeightSets.reduce((max, current) => {
+                return current.reps > max.reps ? current : max;
             });
             
             return peakSet;
