@@ -231,12 +231,9 @@ app.post('/sheets/:spreadsheetId/delete-row', requireAuth, async (req, res) => {
     });
     
     res.json({ success: true, message: 'Row deleted successfully' });
-    });
-    
-    res.json({ success: true, rowIndex });
   } catch (error) {
-    console.error('Error marking entry as deleted:', error);
-    res.status(500).json({ error: 'Failed to mark entry as deleted' });
+    console.error('Error deleting row:', error);
+    res.status(500).json({ error: 'Failed to delete row' });
   }
 });
 
