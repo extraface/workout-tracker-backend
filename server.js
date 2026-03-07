@@ -22,6 +22,25 @@ const oauth2Client = new google.auth.OAuth2(
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 
+// Convert weight to kg for comparison
+function convertToKg(weight, unit) {
+  const LBS_TO_KG = 0.453592;
+  const unitLower = (unit || '').toLowerCase();
+  
+  if (unitLower.includes('kg')) {
+    return weight;
+  } else if (unitLower.includes('lb')) {
+    return weight * LBS_TO_KG;
+  } else if (unitLower === 'bw' || unitLower === 'bodyweight' || unitLower === 'seconds') {
+    return 0; // Not weight-based
+  } else if (unitLower.includes('band') || unitLower.includes('red') || unitLower.includes('blue')) {
+    return 0; // Resistance bands
+  } else {
+    // Default to lbs conversion
+    return weight * LBS_TO_KG;
+  }
+}
+
 // Health check
 app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Workout Tracker API' });
@@ -130,7 +149,7 @@ app.get('/sheets/:spreadsheetId/data', requireAuth, async (req, res) => {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Workouts!A2:H'
+      range: 'Workouts!A2:I'
     });
     
     const rows = response.data.values || [];
@@ -142,8 +161,9 @@ app.get('/sheets/:spreadsheetId/data', requireAuth, async (req, res) => {
         reps: parseInt(row[3]),
         weight: parseFloat(row[4]),
         unit: row[5] || 'lbs',
-        deload: row[6] || '',
-        deleted: row[7] || ''
+        weightKg: parseFloat(row[6]) || 0,
+        deload: row[7] || '',
+        deleted: row[8] || ''
       }))
       .filter(w => !w.deleted || w.deleted !== 'Yes'); // Filter out deleted entries
     
@@ -162,12 +182,15 @@ app.post('/sheets/:spreadsheetId/entry', requireAuth, async (req, res) => {
     
     const sheets = google.sheets({ version: 'v4', auth: req.googleAuth });
     
+    // Calculate weight in kg
+    const weightKg = convertToKg(parseFloat(weight), unit || 'lbs');
+    
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Workouts!A:H',
+      range: 'Workouts!A:I',
       valueInputOption: 'RAW',
       resource: {
-        values: [[date, workout, exercise, reps, weight, unit || 'lbs', deload || '', '']]
+        values: [[date, workout, exercise, reps, weight, unit || 'lbs', weightKg, deload || '', '']]
       }
     });
     
@@ -189,7 +212,7 @@ app.post('/sheets/:spreadsheetId/delete-row', requireAuth, async (req, res) => {
     // Load all data to find the matching row
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Workouts!A2:H'
+      range: 'Workouts!A2:I'
     });
     
     const rows = response.data.values || [];

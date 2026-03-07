@@ -870,6 +870,25 @@
         let syncStatus = 'synced'; // synced, syncing, error
         let sessionUnitMemory = {};
         let lastLoggedSet = null; // Track last set for undo
+        
+        // Convert weight to kg for comparison
+        function convertToKg(weight, unit) {
+            const LBS_TO_KG = 0.453592;
+            const unitLower = (unit || '').toLowerCase();
+            
+            if (unitLower.includes('kg')) {
+                return weight;
+            } else if (unitLower.includes('lb')) {
+                return weight * LBS_TO_KG;
+            } else if (unitLower === 'bw' || unitLower === 'bodyweight' || unitLower === 'seconds') {
+                return 0; // Not weight-based
+            } else if (unitLower.includes('band') || unitLower.includes('red') || unitLower.includes('blue')) {
+                return 0; // Resistance bands
+            } else {
+                // Default to lbs conversion
+                return weight * LBS_TO_KG;
+            }
+        }
 
         // Helper: Normalize exercise name for matching (strips parentheticals and asterisks)
         function normalizeExerciseName(name) {
@@ -1354,7 +1373,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.16</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1901,6 +1920,7 @@
                 reps: parseInt(repsOrTime),
                 weight: parsed.weight,
                 unit: parsed.unit,
+                weightKg: convertToKg(parsed.weight, parsed.unit),
                 deload: deloadCheckbox && deloadCheckbox.checked ? 'Yes' : ''
             };
 
@@ -1965,11 +1985,13 @@
             
             if (weightedSets.length === 0) return null;
             
-            // Find the maximum weight
-            const maxWeight = Math.max(...weightedSets.map(e => e.weight));
+            // Find the maximum weight in kg (for comparison)
+            const maxWeightKg = Math.max(...weightedSets.map(e => e.weightKg || convertToKg(e.weight, e.unit)));
             
             // Get all sets at max weight
-            const maxWeightSets = weightedSets.filter(e => e.weight === maxWeight);
+            const maxWeightSets = weightedSets.filter(e => 
+                (e.weightKg || convertToKg(e.weight, e.unit)) === maxWeightKg
+            );
             
             // Among sets at max weight, find the one with most reps
             const peakSet = maxWeightSets.reduce((max, current) => {
@@ -2131,8 +2153,8 @@
             const prevVolume = prevDate ? byDate[prevDate].reduce((sum, e) => sum + (e.reps * e.weight), 0) : lastVolume;
             const volumeChange = prevVolume > 0 ? ((lastVolume - prevVolume) / prevVolume * 100) : 0;
 
-            const maxWeight = Math.max(...exerciseData.map(e => e.weight));
-            const prEntry = exerciseData.find(e => e.weight === maxWeight);
+            const maxWeightKg = Math.max(...exerciseData.map(e => e.weightKg || convertToKg(e.weight, e.unit)));
+            const prEntry = exerciseData.find(e => (e.weightKg || convertToKg(e.weight, e.unit)) === maxWeightKg);
             const prDate = new Date(prEntry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
             const maxReps = Math.max(...exerciseData.map(e => e.reps));
@@ -2143,7 +2165,7 @@
             return {
                 lastVolume,
                 volumeChange,
-                maxWeight,
+                maxWeight: prEntry.weight,  // Display original weight, not kg
                 prDate,
                 maxReps,
                 maxRepsDate,
@@ -2363,7 +2385,7 @@
 
         function exportToCSV() {
             const csv = [
-                ['Date', 'Workout', 'Exercise', 'Reps', 'Weight', 'Unit', 'Deload'],
+                ['Date', 'Workout', 'Exercise', 'Reps', 'Weight', 'Unit', 'Weight(kg)', 'Deload'],
                 ...workoutLog.map(e => [
                     e.date,  // Already in ISO format, use it directly
                     e.workout,
@@ -2371,6 +2393,7 @@
                     e.reps,
                     e.weight,
                     e.unit,
+                    (e.weightKg || convertToKg(e.weight, e.unit)).toFixed(2),
                     e.deload || ''
                 ])
             ].map(row => row.join(',')).join('\n');
