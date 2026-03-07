@@ -250,6 +250,19 @@ app.post('/sheets/:spreadsheetId/delete-row', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Entry not found' });
     }
     
+    // Get the actual sheetId for "Workouts" tab
+    const spreadsheetData = await sheets.spreadsheets.get({
+      spreadsheetId
+    });
+    
+    const workoutsSheet = spreadsheetData.data.sheets.find(s => s.properties.title === 'Workouts');
+    if (!workoutsSheet) {
+      return res.status(404).json({ error: 'Workouts sheet not found' });
+    }
+    
+    const sheetId = workoutsSheet.properties.sheetId;
+    console.log('Using sheetId:', sheetId, 'to delete row:', rowIndex);
+    
     // Actually delete the row
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
@@ -257,7 +270,7 @@ app.post('/sheets/:spreadsheetId/delete-row', requireAuth, async (req, res) => {
         requests: [{
           deleteDimension: {
             range: {
-              sheetId: 0, // Assumes first sheet (Workouts)
+              sheetId: sheetId,
               dimension: 'ROWS',
               startIndex: rowIndex - 1, // 0-indexed for API
               endIndex: rowIndex
