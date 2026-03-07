@@ -1315,7 +1315,12 @@
                 workouts = JSON.parse(savedWorkouts);
             }
 
-            spreadsheetId = localStorage.getItem('spreadsheetId');
+            // Only override spreadsheetId if localStorage has one
+            const savedSpreadsheetId = localStorage.getItem('spreadsheetId');
+            if (savedSpreadsheetId) {
+                spreadsheetId = savedSpreadsheetId;
+            }
+            // Otherwise keep the hardcoded default from initialization
         }
 
         // UI sync status
@@ -1373,7 +1378,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.3</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.5</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
