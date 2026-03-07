@@ -1373,7 +1373,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.1</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1654,8 +1654,14 @@
             
             if (isTimedWeight) {
                 // For timed-with-weight exercises like KB holds: "45s @ 2×8 kg"
-                // Double the weight for display since they're holding 2 KBs
-                return `${set.reps}s @ 2×${set.weight} ${set.unit}`;
+                // Check if unit already contains the multiplier format
+                if (set.unit.includes('×')) {
+                    // Unit already has format like "2×8 kg", use as-is
+                    return `${set.reps}s @ ${set.unit}`;
+                } else {
+                    // Old format or single weight, add 2× prefix
+                    return `${set.reps}s @ 2×${set.weight} ${set.unit}`;
+                }
             }
             
             if (isTimed) {
