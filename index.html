@@ -1373,7 +1373,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.2</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.3</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1756,16 +1756,16 @@
                 }
             }
             
-            // Handle doubled weight format: "2 x 25 lb" or "25 lb x 2" or "2x25" etc
-            // Matches: NUMBER x NUMBER UNIT or NUMBER UNIT x NUMBER
-            const doubledMatch = str.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)\s*(lbs?|kgs?|kg|lb)?$/) ||
-                                str.match(/^(\d+(?:\.\d+)?)\s*(lbs?|kgs?|kg|lb)?\s*x\s*(\d+(?:\.\d+)?)$/);
+            // Handle doubled weight format: "2 x 25 lb" or "25 lb x 2" or "2x25" or "2×25" etc
+            // Matches: NUMBER x NUMBER UNIT or NUMBER UNIT x NUMBER (with x or ×)
+            const doubledMatch = str.match(/^(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(lbs?|kgs?|kg|lb)?$/) ||
+                                str.match(/^(\d+(?:\.\d+)?)\s*(lbs?|kgs?|kg|lb)?\s*[x×]\s*(\d+(?:\.\d+)?)$/);
             
             if (doubledMatch) {
                 let weight, multiplier, unit;
                 
                 // Check which pattern matched
-                if (str.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+(?:\.\d+)?)/)) {
+                if (str.match(/^(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/)) {
                     // Pattern: "2 x 25 lb" - multiplier first
                     multiplier = parseFloat(doubledMatch[1]);
                     weight = parseFloat(doubledMatch[2]);
