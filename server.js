@@ -179,7 +179,7 @@ app.post('/sheets/:spreadsheetId/entry', requireAuth, async (req, res) => {
 });
 
 // Mark entry as deleted (for undo functionality)
-app.post('/sheets/:spreadsheetId/mark-deleted', requireAuth, async (req, res) => {
+app.post('/sheets/:spreadsheetId/delete-row', requireAuth, async (req, res) => {
   try {
     const { spreadsheetId } = req.params;
     const { date, workout, exercise, reps, weight, unit } = req.body;
@@ -203,8 +203,7 @@ app.post('/sheets/:spreadsheetId/mark-deleted', requireAuth, async (req, res) =>
           row[2] === exercise &&
           parseInt(row[3]) === reps &&
           parseFloat(row[4]) === weight &&
-          row[5] === unit &&
-          (!row[7] || row[7] !== 'Yes')) { // Not already deleted
+          row[5] === unit) {
         rowIndex = i + 2; // +2 because rows are 0-indexed and we start from row 2
         break;
       }
@@ -214,14 +213,24 @@ app.post('/sheets/:spreadsheetId/mark-deleted', requireAuth, async (req, res) =>
       return res.status(404).json({ error: 'Entry not found' });
     }
     
-    // Mark as deleted
-    await sheets.spreadsheets.values.update({
+    // Actually delete the row
+    await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
-      range: `Workouts!H${rowIndex}`,
-      valueInputOption: 'RAW',
       resource: {
-        values: [['Yes']]
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: 0, // Assumes first sheet (Workouts)
+              dimension: 'ROWS',
+              startIndex: rowIndex - 1, // 0-indexed for API
+              endIndex: rowIndex
+            }
+          }
+        }]
       }
+    });
+    
+    res.json({ success: true, message: 'Row deleted successfully' });
     });
     
     res.json({ success: true, rowIndex });

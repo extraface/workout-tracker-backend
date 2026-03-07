@@ -235,6 +235,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 
 ## Version History
 
+**v2.16** (March 2026) - Undo now permanently deletes rows instead of marking as deleted
+
 **v2.15** (March 2026) - Reload from Sheet now also reloads workout configuration from Config tab
 
 **v2.14** (February 2026) - Fix logout to preserve hardcoded spreadsheet ID
