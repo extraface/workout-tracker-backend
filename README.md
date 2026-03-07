@@ -235,6 +235,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 
 ## Version History
 
+**v2.15** (March 2026) - Reload from Sheet now also reloads workout configuration from Config tab
+
 **v2.14** (February 2026) - Fix logout to preserve hardcoded spreadsheet ID
 
 **v2.13** (February 2026) - Workout config now stored in Google Sheets Config tab, auto-initialized from recent workouts

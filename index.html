@@ -1198,17 +1198,20 @@
                 return;
             }
             
-            if (!confirm('This will replace your local workout history with data from the Google Sheet. Continue?')) {
+            if (!confirm('This will replace your local workout history and configuration with data from the Google Sheet. Continue?')) {
                 return;
             }
             
             try {
                 setSyncStatus('syncing');
                 
+                // Load config from Config tab
+                await loadConfig();
+                
                 // Clear local workout log
                 workoutLog = [];
                 
-                // Load fresh from sheet
+                // Load fresh workout data from sheet
                 const result = await apiCall(`/sheets/${spreadsheetId}/data`);
                 workoutLog = result.workouts;
                 
@@ -1217,7 +1220,7 @@
                 
                 setSyncStatus('synced');
                 
-                alert(`Successfully reloaded ${workoutLog.length} entries from Google Sheet!`);
+                alert(`Successfully reloaded ${workoutLog.length} workout entries and exercise configuration from Google Sheet!`);
                 
                 // Refresh the current view
                 if (currentView === 'history') {
@@ -1351,7 +1354,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.14</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.15</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
