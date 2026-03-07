@@ -219,20 +219,34 @@ app.post('/sheets/:spreadsheetId/delete-row', requireAuth, async (req, res) => {
     
     // Find the row that matches (search from bottom up to get most recent)
     let rowIndex = -1;
+    console.log('Looking for row to delete:', { date, workout, exercise, reps, weight, unit });
+    
     for (let i = rows.length - 1; i >= 0; i--) {
       const row = rows[i];
-      if (row[0] === date &&
+      const matches = row[0] === date &&
           row[1] === workout &&
           row[2] === exercise &&
           parseInt(row[3]) === reps &&
           parseFloat(row[4]) === weight &&
-          row[5] === unit) {
+          row[5] === unit;
+      
+      if (matches) {
         rowIndex = i + 2; // +2 because rows are 0-indexed and we start from row 2
+        console.log('Found matching row at index:', rowIndex);
         break;
       }
     }
     
     if (rowIndex === -1) {
+      console.error('No matching row found. Last few rows:', rows.slice(-3).map((r, i) => ({
+        index: rows.length - 3 + i + 2,
+        date: r[0],
+        workout: r[1],
+        exercise: r[2],
+        reps: parseInt(r[3]),
+        weight: parseFloat(r[4]),
+        unit: r[5]
+      })));
       return res.status(404).json({ error: 'Entry not found' });
     }
     

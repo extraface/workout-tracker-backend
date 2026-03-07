@@ -1373,7 +1373,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.1</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.2</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1591,11 +1591,23 @@
                     const lastSet = todaySets[todaySets.length - 1];
                     if (isTimed || isTimedWeight) {
                         prefillReps = lastSet.reps;
-                        if (isTimedWeight && lastSet.weight > 0) prefillWeight = `${lastSet.weight} ${lastSet.unit}`;
+                        if (isTimedWeight && lastSet.weight > 0) {
+                            // For doubled weight format (e.g., "2×8 kg"), use unit only
+                            if (lastSet.unit.includes('×')) {
+                                prefillWeight = lastSet.unit;
+                            } else {
+                                prefillWeight = `${lastSet.weight} ${lastSet.unit}`;
+                            }
+                        }
                     } else if (lastSet.unit === 'BW') {
                         prefillWeight = 'BW';
                     } else if (lastSet.weight > 0) {
-                        prefillWeight = `${lastSet.weight} ${lastSet.unit}`;
+                        // For doubled weight format (e.g., "2×25 lbs"), use unit only
+                        if (lastSet.unit.includes('×')) {
+                            prefillWeight = lastSet.unit;
+                        } else {
+                            prefillWeight = `${lastSet.weight} ${lastSet.unit}`;
+                        }
                     } else if (lastSet.unit && lastSet.unit !== 'NA') {
                         prefillWeight = lastSet.unit;
                     }
