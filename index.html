@@ -1378,7 +1378,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.5</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.6</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1965,12 +1965,9 @@
         }
 
         function getLastSetsForExercise(exercise) {
-            // Normalize the exercise name for matching
-            const normalizedName = normalizeExerciseName(exercise);
-            
-            // Find all sets that match (using normalized names)
+            // Use exact name matching to keep variants separate (e.g. Palms Up vs Palms Down)
             const exerciseSets = workoutLog.filter(e => 
-                normalizeExerciseName(e.exercise) === normalizedName
+                e.exercise === exercise
             );
             
             if (exerciseSets.length === 0) return [];
@@ -1987,12 +1984,9 @@
         }
 
         function getPeakWeightForExercise(exercise) {
-            // Normalize the exercise name for matching
-            const normalizedName = normalizeExerciseName(exercise);
-            
-            // Find all sets that match (using normalized names)
+            // Use exact name matching to keep variants separate (e.g. Palms Up vs Palms Down)
             const exerciseSets = workoutLog.filter(e => 
-                normalizeExerciseName(e.exercise) === normalizedName
+                e.exercise === exercise
             );
             
             if (exerciseSets.length === 0) return null;
@@ -2009,12 +2003,12 @@
             if (weightedSets.length === 0) return null;
             
             // Find the maximum weight in kg (for comparison)
-            const maxWeightKg = Math.max(...weightedSets.map(e => e.weightKg || convertToKg(e.weight, e.unit)));
+            // Round to 4 decimal places to avoid floating point precision issues
+            const toKg = e => Math.round((e.weightKg || convertToKg(e.weight, e.unit)) * 10000) / 10000;
+            const maxWeightKg = Math.max(...weightedSets.map(toKg));
             
-            // Get all sets at max weight
-            const maxWeightSets = weightedSets.filter(e => 
-                (e.weightKg || convertToKg(e.weight, e.unit)) === maxWeightKg
-            );
+            // Get all sets at max weight (using same rounded comparison)
+            const maxWeightSets = weightedSets.filter(e => toKg(e) === maxWeightKg);
             
             // Among sets at max weight, find the one with most reps
             const peakSet = maxWeightSets.reduce((max, current) => {
