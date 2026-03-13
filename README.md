@@ -258,6 +258,65 @@ Automatically strips parentheticals and asterisks for analysis:
 - `Face Pulls (10 lb)` and `Face Pulls (20 lb)` → analyzed as `Face Pulls`
 - `Flat Bench Press*` → shown as `Flat Bench Press`
 
+## Known Issues & Future Enhancements
+
+### 🐛 Open Bugs
+1. **Doubled-weight display formatting in summary** — exercises like Swiss Ball TWM show `8×6 2×3 lbs` instead of clean formatting. Cosmetic only, data is correct.
+2. **Ab Isometrics shows "reps" instead of "seconds"** — label issue in summary endpoint only.
+3. **Deload checkbox not persisting across page reloads** — if the app refreshes mid-workout, the deload flag resets. Fix: save checkbox state to localStorage.
+
+### 🔮 Future Enhancements
+1. **Trend calculation should account for weight changes** — currently compares avg reps only. A rep drop due to a weight increase should not read as "declining".
+2. **Case-insensitive exercise name deduplication** — "KB floor Press" and "KB Floor Press" are tracked separately. Need normalization on data entry or a merge tool.
+3. **Band resistance tracking** — add resistance values per band color to enable volume calculation for band exercises. Values need to be user-configured (different brands/thicknesses).
+4. **Pre-deload weight hints** — after a deload session, show "Pre-deload: 10 reps × 60 lbs (Jan 15)" alongside the regular Last: display to help return to prior weights.
+5. **Coros running data integration** — add running data from Coros watch to the summary endpoint via third-party MCP.
+
+---
+
+## For Claude Instances — How to Use This App's Data
+
+If you are a Claude instance talking to Dave about his training, fetch his complete workout history using this endpoint before responding to any training-related question.
+
+### Step 1 — Warm up (if app has been idle)
+```
+GET https://workout-tracker-backend-production-c138.up.railway.app/summary/health
+```
+If `"status": "ready"`, proceed. Railway can take 10–20 seconds to wake from inactivity.
+
+### Step 2 — Fetch the data you need
+
+**Default (full picture):**
+```
+https://workout-tracker-backend-production-c138.up.railway.app/summary?key=56d4a180adc1b9c9646ca897886d9dfb852b71128de36897e876a2dd53e91d03
+```
+
+**Tailor to the question:**
+
+| Dave asks... | URL to fetch |
+|---|---|
+| "How have I been doing lately?" | `&mode=recent&sessions=5` |
+| "What are my current PRs?" | `&mode=prs` |
+| "How is my Cable Fly progressing?" | `&mode=exercise&name=Cable+Fly` |
+| "How was my training this month?" | `&mode=full&months=1` |
+| "Ignore deload sessions" | `&deload=exclude` |
+| Full picture for program planning | `&mode=full` (default) |
+
+### Key things to know about Dave's training
+- Alternating **Workout A** and **Workout B**, 2–4x per week
+- Exercises marked `*` use **doubled weights** — weight shown is total load (two dumbbells/kettlebells)
+- **Band exercises** (Blue Band) have no numeric weight — excluded from PRs
+- **Timed exercises** (Ab Isometrics, Bottoms Up KB Holds) use seconds in the reps field
+- **Deload sessions** are flagged — use `&deload=exclude` for true performance trends
+- Data goes back to **January 8, 2026**
+
+### Known data quirks to interpret correctly
+- "KB floor Press" and "KB Floor Press" are the same exercise (capitalization bug — being fixed)
+- A trend showing "declining" on an exercise **may mean a weight increase**, not regression — always check recent session weights before drawing conclusions
+- Band Pullaparts have two variants: **(Palms Up)** and **(Palms Down)** — tracked separately, correctly
+
+---
+
 ## Troubleshooting
 
 ### "Sync Error" Status
