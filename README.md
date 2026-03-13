@@ -167,7 +167,81 @@ Settings → Export to CSV. Dates in ISO format matching Google Sheets for easy 
 ### Reload from Sheet
 Settings → Reload from Sheet replaces local data with Google Sheet data. Use if devices get out of sync.
 
-## Analysis Features
+## Claude/AI Summary Endpoint
+
+A read-only endpoint that returns a plain-text summary of your complete workout data. Designed for fetching by Claude or any AI assistant to give it full context on your training history.
+
+### Endpoints
+
+**Health check** (no key required):
+```
+GET /summary/health
+```
+Returns whether credentials and configuration are ready. Use this first to verify setup.
+
+**Summary** (key required):
+```
+GET /summary?key=YOUR_KEY
+```
+
+### Query Parameters
+
+| Parameter | Options | Default | Description |
+|---|---|---|---|
+| `mode` | `full`, `recent`, `prs`, `exercise` | `full` | What to include |
+| `months` | 1–120 | all-time | Limit data to last N months |
+| `sessions` | 1–50 | 10 | Number of recent sessions to show |
+| `since` | `YYYY-MM-DD` | none | Limit data after this date (wins over `months`) |
+| `deload` | `exclude`, `only` | include all | Filter deload sessions |
+| `name` | exercise name | none | Required for `mode=exercise` |
+
+### Mode Reference
+
+| Mode | Returns |
+|---|---|
+| `full` | Recent sessions + all PRs + exercise history + trends |
+| `recent` | Last N sessions only |
+| `prs` | All-time personal records per exercise |
+| `exercise` | Deep dive on one exercise — full history, all sessions |
+
+### Example URLs
+
+```
+# Full summary (all time)
+/summary?key=KEY
+
+# Last 3 months only
+/summary?key=KEY&months=3
+
+# Just PRs, excluding deload sessions
+/summary?key=KEY&mode=prs&deload=exclude
+
+# Cable Fly deep dive, last 6 months
+/summary?key=KEY&mode=exercise&name=Cable+Fly&months=6
+
+# Last 20 sessions
+/summary?key=KEY&mode=recent&sessions=20
+
+# Everything since January 1
+/summary?key=KEY&since=2026-01-01
+```
+
+### Setup Requirements
+
+Three Railway environment variables needed:
+1. `SUMMARY_API_KEY` — your secret key
+2. `SUMMARY_SPREADSHEET_ID` — your sheet ID
+3. `GOOGLE_SERVICE_ACCOUNT_JSON` — Google Service Account JSON key (see `.env.example`)
+
+### Notes
+- Responses are cached for 60 seconds per unique parameter combination
+- Rate limited to 30 requests per IP per minute
+- First request after Railway inactivity may take 10–20 seconds (cold start) — hit `/summary/health` first to warm it up
+- Returns plain text, optimized for AI consumption
+
+---
+
+
 
 ### Metrics (per exercise)
 - Total Volume (last session vs previous, % change)

@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { google } = require('googleapis');
+const { registerRoutes: registerSummaryRoutes } = require('./summary');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -531,6 +532,9 @@ app.post('/sheets/:spreadsheetId/config', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to update config', details: error.message });
   }
 });
+
+// Summary endpoint for Claude/AI consumption
+registerSummaryRoutes(app);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
