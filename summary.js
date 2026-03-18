@@ -17,7 +17,7 @@ const SPREADSHEET_ID = process.env.SUMMARY_SPREADSHEET_ID;
 const SUMMARY_API_KEY = process.env.SUMMARY_API_KEY;
 const SHEET_RANGE = 'Workouts!A2:I';
 const SHEET_TIMEOUT_MS = 10000;
-const CACHE_TTL_MS = 60000; // 60 seconds
+const CACHE_TTL_MS = 5000; // 5 seconds
 
 // Rate limiting: 30 requests per IP per minute
 const RATE_LIMIT_MAX = 30;
@@ -35,6 +35,7 @@ function getCacheKey(params) {
 }
 
 function getCached(params) {
+  if (params.bust) return null; // bypass cache entirely
   const key = getCacheKey(params);
   const entry = summaryCache.get(key);
   if (!entry) return null;
@@ -168,7 +169,8 @@ function parseParams(query) {
       since,
       deload,
       cutoffDate,
-      name: query.name ? String(query.name).trim() : null
+      name: query.name ? String(query.name).trim() : null,
+      bust: query.bust === '1' || query.bust === 'true'
     },
     error: null
   };
