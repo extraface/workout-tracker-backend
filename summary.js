@@ -638,6 +638,32 @@ function registerRoutes(app) {
   });
 
   // Main summary endpoint
+  // Keyless endpoint for Claude AI fetch access (workout data is not sensitive)
+  app.get('/workout-data', async (req, res) => {
+    const start = Date.now();
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+
+    if (!checkRateLimit(ip)) {
+      return res.status(429).json({ error: 'Too many requests. Limit: 30 per minute.' });
+    }
+
+    const { params, error: paramError } = parseParams(req.query);
+    if (paramError) {
+      return res.status(400).json({ error: paramError });
+    }
+
+    try {
+      const text = await buildSummary(params);
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+      res.setHeader('X-Generated-At', new Date().toISOString());
+      console.log(`[workout-data] 200 mode=${params.mode} ip=${ip} ms=${Date.now() - start}`);
+      return res.send(text);
+    } catch (err) {
+      console.error(`[workout-data] 500 ms=${Date.now() - start}`, err.message);
+      return res.status(500).json({ error: 'An unexpected error occurred.' });
+    }
+  });
+
   app.get('/summary', async (req, res) => {
     const start = Date.now();
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
