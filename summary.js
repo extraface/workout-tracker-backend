@@ -720,6 +720,8 @@ function registerRoutes(app) {
 
 module.exports = {
   registerRoutes,
+  buildSummary,
+  parseParams,
   // Pure functions exported for testing:
   parseSheetsData,
   filterActive,
