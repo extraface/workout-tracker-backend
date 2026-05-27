@@ -4,71 +4,153 @@
  * coros-mcp.js
  * Remote MCP server exposing Coros activity data to Claude.
  *
- * Authenticates with the Coros web API using credentials stored
- * in Railway environment variables (COROS_EMAIL, COROS_PASSWORD).
- * Web API only — no mobile API, so the Coros phone app is unaffected.
+ * Uses Node built-in https — no external dependencies.
+ * Authenticates with the Coros web API (US/EN region) using
+ * COROS_EMAIL + COROS_PASSWORD environment variables.
+ * Web API only — phone app is never affected.
  *
- * Transport: Streamable HTTP (POST /coros-mcp) — same pattern as mcp.js
  * Connect in Claude.ai: Settings > Connectors > Add custom connector
  * URL: https://workout-tracker-backend-production-c138.up.railway.app/coros-mcp
  */
 
+const https = require('https');
+const crypto = require('crypto');
 const express = require('express');
-const { CorosApi, STSConfigs } = require(
-  require.resolve('@nyt87/crs-connect').replace(/\.mjs$/, '.cjs')
-);
 
 const router = express.Router();
 
-// ─── Coros Client (singleton with token caching) ──────────────────────────────
+// ─── Coros API Constants ──────────────────────────────────────────────────────
 
-let _client = null;
+const COROS_BASE = 'https://teamcnapi.coros.com'; // US/global endpoint
+const APP_ID = 'coros-webv2';
+
+// ─── HTTP Helper ──────────────────────────────────────────────────────────────
+
+function httpsRequest(url, options = {}, body = null) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const reqOptions = {
+      hostname: parsed.hostname,
+      path: parsed.pathname + parsed.search,
+      method: options.method || 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'apptype': '5',
+        'appversion': '2.8.1',
+        ...options.headers,
+      },
+    };
+
+    const req = https.request(reqOptions, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode, data: JSON.parse(data) });
+        } catch {
+          resolve({ status: res.statusCode, data });
+        }
+      });
+    });
+
+    req.on('error', reject);
+    if (body) req.write(JSON.stringify(body));
+    req.end();
+  });
+}
+
+// ─── Coros Auth (singleton with token caching) ────────────────────────────────
+
+let _token = null;
 let _loginPromise = null;
 
-/**
- * Returns an authenticated CorosApi instance.
- * Logs in once on first call, then reuses the token.
- * If a login is already in progress, waits for it rather than firing twice.
- */
-async function getClient() {
-  if (_client) return _client;
+function md5(str) {
+  return crypto.createHash('md5').update(str).digest('hex');
+}
 
-  // Prevent concurrent logins if two tool calls arrive simultaneously
-  if (_loginPromise) return _loginPromise;
+async function login() {
+  const email = process.env.COROS_EMAIL;
+  const password = process.env.COROS_PASSWORD;
 
-  _loginPromise = (async () => {
-    const email = process.env.COROS_EMAIL;
-    const password = process.env.COROS_PASSWORD;
+  if (!email || !password) {
+    throw new Error('COROS_EMAIL and COROS_PASSWORD environment variables are required');
+  }
 
-    if (!email || !password) {
-      throw new Error('COROS_EMAIL and COROS_PASSWORD environment variables are required');
+  console.log('[Coros MCP] Authenticating...');
+
+  const res = await httpsRequest(
+    `${COROS_BASE}/account/login`,
+    { method: 'POST' },
+    {
+      account: email,
+      accountType: 2, // email login
+      pwd: md5(password),
+      appId: APP_ID,
     }
+  );
 
-    console.log('[Coros MCP] Authenticating with Coros web API...');
-    const client = new CorosApi({ email, password });
-    client.config({ stsConfig: STSConfigs.EN }); // EN = US/global region
+  if (res.status !== 200 || res.data?.result !== '0000') {
+    throw new Error(`Coros login failed: ${JSON.stringify(res.data)}`);
+  }
 
-    await client.login(email, password);
-    console.log('[Coros MCP] Authenticated successfully');
+  _token = res.data.data?.accessToken || res.data.accessToken;
+  if (!_token) throw new Error('No access token in Coros login response');
 
-    _client = client;
-    _loginPromise = null;
-    return _client;
-  })();
+  console.log('[Coros MCP] Authenticated successfully');
+  return _token;
+}
 
+async function getToken() {
+  if (_token) return _token;
+  if (_loginPromise) return _loginPromise;
+  _loginPromise = login().finally(() => { _loginPromise = null; });
   return _loginPromise;
 }
 
-/**
- * Clears the cached client so the next call re-authenticates.
- * Called when we get a 401/unauthorized from Coros.
- */
-function resetClient() {
-  _client = null;
+function resetToken() {
+  _token = null;
   _loginPromise = null;
 }
 
-// ─── Data Formatting Helpers ──────────────────────────────────────────────────
+function authHeaders() {
+  return { 'accesstoken': _token };
+}
+
+// ─── Coros API Calls ──────────────────────────────────────────────────────────
+
+async function fetchActivities(size = 5) {
+  const token = await getToken();
+  const url = `${COROS_BASE}/activity/query?size=${size}&pageNumber=1`;
+  const res = await httpsRequest(url, { headers: authHeaders() });
+
+  if (res.status === 401 || res.data?.result === '1003') {
+    resetToken();
+    throw new Error('unauthorized');
+  }
+  if (res.data?.result !== '0000') {
+    throw new Error(`Coros API error: ${JSON.stringify(res.data)}`);
+  }
+
+  return res.data?.data?.dataList || res.data?.data || [];
+}
+
+async function fetchActivityDetail(activityId, sportType = '100') {
+  const token = await getToken();
+  const url = `${COROS_BASE}/activity/detail/query?labelId=${activityId}&sportType=${sportType}`;
+  const res = await httpsRequest(url, { method: 'POST', headers: authHeaders() });
+
+  if (res.status === 401 || res.data?.result === '1003') {
+    resetToken();
+    throw new Error('unauthorized');
+  }
+  if (res.data?.result !== '0000') {
+    throw new Error(`Coros API error: ${JSON.stringify(res.data)}`);
+  }
+
+  return res.data?.data || null;
+}
+
+// ─── Formatting ───────────────────────────────────────────────────────────────
 
 function formatDuration(seconds) {
   if (!seconds) return 'unknown';
@@ -76,53 +158,46 @@ function formatDuration(seconds) {
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
   if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
-  return `${s}s`;
+  return `${m}m ${s}s`;
 }
 
 function formatDistance(meters) {
-  if (!meters) return 'unknown';
+  if (!meters) return null;
   const miles = (meters / 1609.34).toFixed(2);
   const km = (meters / 1000).toFixed(2);
   return `${miles} mi (${km} km)`;
 }
 
 function formatPace(meters, seconds) {
-  if (!meters || !seconds) return 'unknown';
-  const secondsPerMile = seconds / (meters / 1609.34);
-  const paceMin = Math.floor(secondsPerMile / 60);
-  const paceSec = Math.round(secondsPerMile % 60).toString().padStart(2, '0');
-  return `${paceMin}:${paceSec} /mi`;
+  if (!meters || !seconds) return null;
+  const secPerMile = seconds / (meters / 1609.34);
+  const min = Math.floor(secPerMile / 60);
+  const sec = Math.round(secPerMile % 60).toString().padStart(2, '0');
+  return `${min}:${sec} /mi`;
 }
 
-function formatDate(timestamp) {
-  if (!timestamp) return 'unknown';
-  // Coros timestamps are in seconds or YYYYMMDDHHMMSS format
-  if (String(timestamp).length === 14) {
-    const s = String(timestamp);
+function formatTimestamp(ts) {
+  if (!ts) return 'unknown';
+  const s = String(ts);
+  // YYYYMMDDHHMMSS format from Coros
+  if (s.length === 14) {
     return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}`;
   }
-  return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  });
+  return new Date(Number(ts) * 1000).toLocaleString('en-US');
 }
 
-function formatActivity(activity) {
+function formatActivity(a) {
   const lines = [];
-  lines.push(`📍 ${activity.sportName || activity.name || 'Activity'}`);
-  lines.push(`   Date: ${formatDate(activity.startTime)}`);
-  if (activity.distance) lines.push(`   Distance: ${formatDistance(activity.distance)}`);
-  if (activity.totalTime) {
-    lines.push(`   Duration: ${formatDuration(activity.totalTime)}`);
-    if (activity.distance) lines.push(`   Pace: ${formatPace(activity.distance, activity.totalTime)}`);
-  }
-  if (activity.avgHeartRate) lines.push(`   Avg HR: ${activity.avgHeartRate} bpm`);
-  if (activity.maxHeartRate) lines.push(`   Max HR: ${activity.maxHeartRate} bpm`);
-  if (activity.calorie) lines.push(`   Calories: ${Math.round(activity.calorie / 1000)} kcal`);
-  if (activity.trainingLoad) lines.push(`   Training Load: ${activity.trainingLoad}`);
-  if (activity.elevationGain) lines.push(`   Elevation Gain: ${activity.elevationGain}m`);
-  lines.push(`   ID: ${activity.labelId} (sport type: ${activity.sportType})`);
+  lines.push(`${a.sportName || a.name || 'Activity'} — ${formatTimestamp(a.startTime)}`);
+  if (a.distance)     lines.push(`  Distance: ${formatDistance(a.distance)}`);
+  if (a.totalTime)    lines.push(`  Duration: ${formatDuration(a.totalTime)}`);
+  if (a.distance && a.totalTime) lines.push(`  Pace: ${formatPace(a.distance, a.totalTime)}`);
+  if (a.avgHeartRate) lines.push(`  Avg HR: ${a.avgHeartRate} bpm`);
+  if (a.maxHeartRate) lines.push(`  Max HR: ${a.maxHeartRate} bpm`);
+  if (a.calorie)      lines.push(`  Calories: ${Math.round(a.calorie / 1000)} kcal`);
+  if (a.trainingLoad) lines.push(`  Training Load: ${a.trainingLoad}`);
+  if (a.elevationGain) lines.push(`  Elevation Gain: ${a.elevationGain}m`);
+  lines.push(`  ID: ${a.labelId} | Sport type: ${a.sportType}`);
   return lines.join('\n');
 }
 
@@ -131,46 +206,34 @@ function formatActivity(activity) {
 const TOOLS = [
   {
     name: 'get_recent_activities',
-    description: "Get Dave's most recent Coros activities (runs, workouts, etc). Use when Dave asks about recent runs, training sessions, how a run went, or wants a summary of recent activity.",
+    description: "Get Dave's most recent Coros activities (runs, workouts, etc). Use when Dave asks about recent runs, how a run went, or wants a summary of recent training.",
     inputSchema: {
       type: 'object',
       properties: {
-        count: {
-          type: 'number',
-          description: 'Number of recent activities to return (default: 5, max: 20)',
-        },
+        count: { type: 'number', description: 'Number of recent activities to return (default: 5, max: 20)' },
       },
       required: [],
     },
   },
   {
     name: 'get_activity_detail',
-    description: "Get full details for a specific Coros activity including lap splits and detailed metrics. Use after get_recent_activities when Dave wants to dig into a specific run.",
+    description: "Get full details for a specific Coros activity including lap splits. Use after get_recent_activities when Dave wants to dig into a specific run.",
     inputSchema: {
       type: 'object',
       properties: {
-        activity_id: {
-          type: 'string',
-          description: 'The activity ID from get_recent_activities results',
-        },
-        sport_type: {
-          type: 'string',
-          description: 'The sport type from get_recent_activities results (e.g. "100" for running)',
-        },
+        activity_id: { type: 'string', description: 'The activity ID from get_recent_activities' },
+        sport_type:  { type: 'string', description: 'Sport type from get_recent_activities (e.g. "100" for running)' },
       },
       required: ['activity_id'],
     },
   },
   {
     name: 'get_training_metrics',
-    description: "Get Dave's EvoLab and daily training metrics: training load, VO2max, fitness score, resting HR. Use when Dave asks about recovery, fitness trends, or training status.",
+    description: "Get a summary of Dave's recent training load, HR trends, and distance from recent Coros activities.",
     inputSchema: {
       type: 'object',
       properties: {
-        days: {
-          type: 'number',
-          description: 'Number of days of recent activities to summarize for metrics (default: 30)',
-        },
+        count: { type: 'number', description: 'Number of recent activities to summarize (default: 10)' },
       },
       required: [],
     },
@@ -180,82 +243,58 @@ const TOOLS = [
 // ─── Tool Execution ───────────────────────────────────────────────────────────
 
 async function executeTool(name, args) {
-  // Auto-retry once on auth failure
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const client = await getClient();
-
       switch (name) {
 
         case 'get_recent_activities': {
           const count = Math.min(args.count || 5, 20);
-          const data = await client.getActivitiesList({ size: count });
-          const activities = data?.dataList || data || [];
-
+          const activities = await fetchActivities(count);
           if (!activities.length) return 'No recent activities found.';
-
           const lines = [`Dave's ${activities.length} most recent Coros activities:\n`];
-          for (const act of activities) {
-            lines.push(formatActivity(act));
-            lines.push('');
-          }
+          for (const a of activities) { lines.push(formatActivity(a)); lines.push(''); }
           return lines.join('\n');
         }
 
         case 'get_activity_detail': {
           if (!args.activity_id) throw new Error('activity_id is required');
-          const sportType = args.sport_type || '100';
-          const data = await client.getActivityDetails(args.activity_id, sportType);
-
-          if (!data) return 'Activity not found.';
-
-          const lines = ['Activity Detail:\n'];
-
-          // Basic info
-          if (data.labelId) lines.push(formatActivity(data));
-          lines.push('');
-
-          // Lap splits if available
-          const laps = data.lapList || data.laps || [];
-          if (laps.length > 0) {
+          const detail = await fetchActivityDetail(args.activity_id, args.sport_type || '100');
+          if (!detail) return 'Activity not found.';
+          const lines = ['Activity Detail:\n', formatActivity(detail), ''];
+          const laps = detail.lapList || detail.laps || [];
+          if (laps.length) {
             lines.push(`Lap Splits (${laps.length} laps):`);
             laps.forEach((lap, i) => {
-              const lapDist = lap.distance ? formatDistance(lap.distance) : '';
-              const lapPace = lap.distance && lap.time ? formatPace(lap.distance, lap.time) : '';
-              const lapHR = lap.avgHeartRate ? `HR: ${lap.avgHeartRate}` : '';
-              lines.push(`  Lap ${i + 1}: ${lapDist} @ ${lapPace} ${lapHR}`.trim());
+              const dist = lap.distance ? formatDistance(lap.distance) : '';
+              const pace = (lap.distance && lap.time) ? formatPace(lap.distance, lap.time) : '';
+              const hr   = lap.avgHeartRate ? `HR: ${lap.avgHeartRate} bpm` : '';
+              lines.push(`  Lap ${i + 1}: ${[dist, pace, hr].filter(Boolean).join(' | ')}`);
             });
           }
-
           return lines.join('\n');
         }
 
         case 'get_training_metrics': {
-          const days = args.days || 30;
-          const data = await client.getActivitiesList({ size: 20 });
-          const activities = data?.dataList || data || [];
-
+          const count = Math.min(args.count || 10, 20);
+          const activities = await fetchActivities(count);
           if (!activities.length) return 'No activity data found.';
-
-          // Summarize from recent activities since EvoLab endpoint isn't in the library
           const runs = activities.filter(a => String(a.sportType).startsWith('1'));
-          const totalLoad = activities.reduce((sum, a) => sum + (a.trainingLoad || 0), 0);
-          const avgHR = activities.filter(a => a.avgHeartRate)
-            .reduce((sum, a, _, arr) => sum + a.avgHeartRate / arr.length, 0);
-          const totalDistance = runs.reduce((sum, a) => sum + (a.distance || 0), 0);
-
-          const lines = [
-            `Training Metrics Summary (last ${activities.length} activities):\n`,
+          const totalLoad = activities.reduce((s, a) => s + (a.trainingLoad || 0), 0);
+          const hrActivities = activities.filter(a => a.avgHeartRate);
+          const avgHR = hrActivities.length
+            ? Math.round(hrActivities.reduce((s, a) => s + a.avgHeartRate, 0) / hrActivities.length)
+            : null;
+          const totalDist = runs.reduce((s, a) => s + (a.distance || 0), 0);
+          return [
+            `Training Metrics (last ${activities.length} activities):\n`,
+            `Total Activities: ${activities.length} (${runs.length} runs)`,
+            `Total Running Distance: ${formatDistance(totalDist) || 'N/A'}`,
             `Total Training Load: ${totalLoad}`,
-            `Avg Heart Rate: ${avgHR ? Math.round(avgHR) + ' bpm' : 'N/A'}`,
-            `Total Running Distance: ${formatDistance(totalDistance)}`,
-            `Activities Logged: ${activities.length} (${runs.length} runs)`,
+            avgHR ? `Avg Heart Rate: ${avgHR} bpm` : null,
             '',
             'Most recent activity:',
             formatActivity(activities[0]),
-          ];
-
-          return lines.join('\n');
+          ].filter(l => l !== null).join('\n');
         }
 
         default:
@@ -263,82 +302,52 @@ async function executeTool(name, args) {
       }
 
     } catch (err) {
-      const isAuthError = err.message?.includes('401') ||
-                          err.message?.includes('unauthorized') ||
-                          err.message?.includes('Unauthorized') ||
-                          err.message?.includes('token');
-
-      if (isAuthError && attempt === 0) {
-        console.log('[Coros MCP] Auth error, resetting client and retrying...');
-        resetClient();
-        continue; // retry
+      if (err.message === 'unauthorized' && attempt === 0) {
+        console.log('[Coros MCP] Token expired, re-authenticating...');
+        resetToken();
+        continue;
       }
-
       throw err;
     }
   }
 }
 
-// ─── MCP Request Handler ──────────────────────────────────────────────────────
+// ─── MCP JSON-RPC Handler ─────────────────────────────────────────────────────
 
-function jsonRpcResult(id, result) {
-  return { jsonrpc: '2.0', id, result };
-}
-
-function jsonRpcError(id, code, message) {
-  return { jsonrpc: '2.0', id, error: { code, message } };
-}
+function ok(id, result)    { return { jsonrpc: '2.0', id, result }; }
+function err(id, code, msg){ return { jsonrpc: '2.0', id, error: { code, message: msg } }; }
 
 router.post('/', express.json(), async (req, res) => {
   const { jsonrpc, id, method, params } = req.body;
-
-  if (jsonrpc !== '2.0') {
-    return res.json(jsonRpcError(id, -32600, 'Invalid JSON-RPC version'));
-  }
+  if (jsonrpc !== '2.0') return res.json(err(id, -32600, 'Invalid JSON-RPC version'));
 
   try {
     if (method === 'initialize') {
-      return res.json(jsonRpcResult(id, {
+      return res.json(ok(id, {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'dave-coros-tracker', version: '1.0.0' },
+        serverInfo: { name: 'dave-coros', version: '1.0.0' },
       }));
     }
-
     if (method === 'tools/list') {
-      return res.json(jsonRpcResult(id, { tools: TOOLS }));
+      return res.json(ok(id, { tools: TOOLS }));
     }
-
     if (method === 'tools/call') {
       const toolName = params?.name;
       const toolArgs = params?.arguments || {};
-
-      if (!toolName) {
-        return res.json(jsonRpcError(id, -32602, 'Missing tool name'));
-      }
-
-      console.log(`[Coros MCP] tools/call: ${toolName}`, JSON.stringify(toolArgs));
-
+      if (!toolName) return res.json(err(id, -32602, 'Missing tool name'));
+      console.log(`[Coros MCP] tools/call: ${toolName}`);
       const result = await executeTool(toolName, toolArgs);
-
-      return res.json(jsonRpcResult(id, {
-        content: [{ type: 'text', text: result }],
-      }));
+      return res.json(ok(id, { content: [{ type: 'text', text: result }] }));
     }
+    if (method === 'notifications/initialized') return res.status(204).send();
+    return res.json(err(id, -32601, `Method not found: ${method}`));
 
-    if (method === 'notifications/initialized') {
-      return res.status(204).send();
-    }
-
-    return res.json(jsonRpcError(id, -32601, `Method not found: ${method}`));
-
-  } catch (err) {
-    console.error(`[Coros MCP] Error in ${method}:`, err.message);
-    return res.json(jsonRpcError(id, -32603, err.message));
+  } catch (e) {
+    console.error(`[Coros MCP] Error:`, e.message);
+    return res.json(err(id, -32603, e.message));
   }
 });
-
-// ─── Register on Express App ──────────────────────────────────────────────────
 
 function registerCorosMcpRoutes(app) {
   app.use('/coros-mcp', router);
