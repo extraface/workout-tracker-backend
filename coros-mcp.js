@@ -21,7 +21,7 @@ const router = express.Router();
 
 // ─── Coros API Constants ──────────────────────────────────────────────────────
 
-const COROS_BASE = 'https://teamcnapi.coros.com'; // US/global endpoint
+const COROS_BASE = 'https://teamapi.coros.com'; // US/global endpoint
 const APP_ID = 'coros-webv2';
 
 // ─── HTTP Helper ──────────────────────────────────────────────────────────────
