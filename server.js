@@ -4,6 +4,7 @@ const cors = require('cors');
 const { google } = require('googleapis');
 const { registerRoutes: registerSummaryRoutes } = require('./summary');
 const { registerMcpRoutes } = require('./mcp');
+const { registerCorosMcpRoutes } = require('./coros-mcp');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -539,6 +540,9 @@ registerSummaryRoutes(app);
 
 // MCP server for Claude connectors
 registerMcpRoutes(app);
+
+// Coros MCP server for running/activity data
+registerCorosMcpRoutes(app);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
