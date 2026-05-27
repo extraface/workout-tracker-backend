@@ -276,35 +276,6 @@
             font-weight: 700;
         }
 
-        .deload-container {
-            display: none;
-            margin: -12px 0 16px 0;
-            padding: 12px;
-            background: #fff7ed;
-            border: 1px solid #fed7aa;
-            border-radius: 8px;
-        }
-
-        .deload-checkbox-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-        }
-
-        .deload-checkbox-wrapper input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-
-        .deload-checkbox-wrapper label {
-            font-size: 14px;
-            font-weight: 500;
-            color: #c2410c;
-            cursor: pointer;
-            user-select: none;
-        }
 
         .workout-suggestion-text {
             text-align: center;
@@ -1378,7 +1349,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.7</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.8</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1399,12 +1370,6 @@
                         <div class="workout-selector">
                             <button class="workout-btn" id="workoutBtnA" onclick="selectWorkout('A')">Workout A</button>
                             <button class="workout-btn" id="workoutBtnB" onclick="selectWorkout('B')">Workout B</button>
-                        </div>
-                        <div id="deloadContainer" class="deload-container">
-                            <div class="deload-checkbox-wrapper">
-                                <input type="checkbox" id="deloadCheckbox">
-                                <label for="deloadCheckbox">🔻 This is a deload session</label>
-                            </div>
                         </div>
                         <div id="exerciseList">
                             <div class="empty-state">
@@ -1527,12 +1492,6 @@
                 btn.classList.remove('selected');
             });
             event.target.classList.add('selected');
-            
-            // Show deload checkbox
-            const deloadContainer = document.getElementById('deloadContainer');
-            if (deloadContainer) {
-                deloadContainer.style.display = 'block';
-            }
             
             renderExercises();
         }
@@ -1925,10 +1884,9 @@
             const isTimedWeight = isTimedWithWeight(exercise);
             const repsInput = document.getElementById(`reps-${idx}`);
             const weightInput = document.getElementById(`weight-${idx}`);
-            const deloadCheckbox = document.getElementById('deloadCheckbox');
-            
+
             const repsOrTime = repsInput.value;
-            
+
             if (!repsOrTime) {
                 alert((isTimed || isTimedWeight) ? 'Please enter time in seconds' : 'Please enter reps');
                 return;
@@ -1944,7 +1902,7 @@
                 weight: parsed.weight,
                 unit: parsed.unit,
                 weightKg: convertToKg(parsed.weight, parsed.unit),
-                deload: deloadCheckbox && deloadCheckbox.checked ? 'Yes' : ''
+                deload: ''
             };
 
             workoutLog.push(setData);
@@ -2369,16 +2327,6 @@
             // Clear session memory and undo state
             sessionUnitMemory = {};
             lastLoggedSet = null;
-            
-            // Reset and hide deload checkbox
-            const deloadCheckbox = document.getElementById('deloadCheckbox');
-            const deloadContainer = document.getElementById('deloadContainer');
-            if (deloadCheckbox) {
-                deloadCheckbox.checked = false;
-            }
-            if (deloadContainer) {
-                deloadContainer.style.display = 'none';
-            }
             
             // Show summary
             alert(`Workout ${currentWorkout} Complete! 🎉\n\n${exerciseCount} exercises\n${setCount} sets logged today`);
