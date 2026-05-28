@@ -134,6 +134,25 @@ async function fetchActivities(size = 5) {
   return res.data?.data?.dataList || res.data?.data || [];
 }
 
+async function fetchActivitiesByDateRange(startDate, endDate, size = 100) {
+  const token = await getToken();
+  // Coros expects dates as YYYYMMDD integers
+  const startDay = startDate.replace(/-/g, '');
+  const endDay = endDate.replace(/-/g, '');
+  const url = `${COROS_BASE}/activity/query?size=${size}&pageNumber=1&startDay=${startDay}&endDay=${endDay}`;
+  const res = await httpsRequest(url, { headers: authHeaders() });
+
+  if (res.status === 401 || res.data?.result === '1003' || res.data?.result === '1019') {
+    resetToken();
+    throw new Error('unauthorized');
+  }
+  if (res.data?.result !== '0000') {
+    throw new Error(`Coros API error: ${JSON.stringify(res.data)}`);
+  }
+
+  return res.data?.data?.dataList || res.data?.data || [];
+}
+
 async function fetchActivityDetail(activityId, sportType = '100') {
   const token = await getToken();
   const url = `${COROS_BASE}/activity/detail/query?labelId=${activityId}&sportType=${sportType}`;
@@ -228,6 +247,30 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_activities_by_date_range',
+    description: "Get all of Dave's Coros activities between two dates. Use when Dave asks about a specific week, month, or date window — e.g. 'show me everything in May' or 'what did I do last week'.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', description: 'Start date in YYYY-MM-DD format (inclusive)' },
+        end_date:   { type: 'string', description: 'End date in YYYY-MM-DD format (inclusive)' },
+      },
+      required: ['start_date', 'end_date'],
+    },
+  },
+  {
+    name: 'get_activities_by_type',
+    description: "Get Dave's most recent Coros activities filtered by sport type. Use when Dave asks for a specific type of activity — e.g. 'last 10 walks', 'last 20 runs', 'recent strength sessions'.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sport_type: { type: 'string', enum: ['run', 'walk', 'strength'], description: 'Type of activity to filter for' },
+        count: { type: 'number', description: 'How many matching activities to return (default: 10, max: 50)' },
+      },
+      required: ['sport_type'],
+    },
+  },
+  {
     name: 'get_training_metrics',
     description: "Get a summary of Dave's recent training load, HR trends, and distance from recent Coros activities.",
     inputSchema: {
@@ -271,6 +314,57 @@ async function executeTool(name, args) {
               lines.push(`  Lap ${i + 1}: ${[dist, pace, hr].filter(Boolean).join(' | ')}`);
             });
           }
+          return lines.join('\n');
+        }
+
+        case 'get_activities_by_date_range': {
+          if (!args.start_date || !args.end_date) throw new Error('start_date and end_date are required');
+          const activities = await fetchActivitiesByDateRange(args.start_date, args.end_date);
+          if (!activities.length) return `No activities found between ${args.start_date} and ${args.end_date}.`;
+          const lines = [`Dave's activities from ${args.start_date} to ${args.end_date} (${activities.length} total):\n`];
+          for (const a of activities) { lines.push(formatActivity(a)); lines.push(''); }
+          return lines.join('\n');
+        }
+
+        case 'get_activities_by_type': {
+          if (!args.sport_type) throw new Error('sport_type is required');
+          const count = Math.min(args.count || 10, 50);
+          // Sport type codes: 100=run, 900=walk, 402=strength
+          const sportTypeCodes = { run: '1', walk: '900', strength: '402' };
+          const codePrefix = sportTypeCodes[args.sport_type];
+          if (!codePrefix) throw new Error(`Unknown sport_type: ${args.sport_type}. Use run, walk, or strength.`);
+
+          // Fetch in batches until we have enough matching activities
+          let matching = [];
+          let pageNumber = 1;
+          const batchSize = 20;
+          while (matching.length < count && pageNumber <= 10) {
+            const token = await getToken();
+            const url = `${COROS_BASE}/activity/query?size=${batchSize}&pageNumber=${pageNumber}`;
+            const res = await httpsRequest(url, { headers: authHeaders() });
+            if (res.status === 401 || res.data?.result === '1003' || res.data?.result === '1019') {
+              resetToken();
+              throw new Error('unauthorized');
+            }
+            if (res.data?.result !== '0000') throw new Error(`Coros API error: ${JSON.stringify(res.data)}`);
+            const batch = res.data?.data?.dataList || res.data?.data || [];
+            if (!batch.length) break;
+            const filtered = batch.filter(a => {
+              const st = String(a.sportType);
+              if (args.sport_type === 'run') return st === '100';
+              if (args.sport_type === 'walk') return st === '900';
+              if (args.sport_type === 'strength') return st === '402';
+              return false;
+            });
+            matching = matching.concat(filtered);
+            if (batch.length < batchSize) break; // no more pages
+            pageNumber++;
+          }
+
+          matching = matching.slice(0, count);
+          if (!matching.length) return `No ${args.sport_type} activities found.`;
+          const lines = [`Dave's ${matching.length} most recent ${args.sport_type} activities:\n`];
+          for (const a of matching) { lines.push(formatActivity(a)); lines.push(''); }
           return lines.join('\n');
         }
 
