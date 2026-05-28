@@ -420,7 +420,7 @@ router.post('/', express.json(), async (req, res) => {
       return res.json(ok(id, {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'dave-coros', version: '1.0.0' },
+        serverInfo: { name: 'dave-coros', version: '1.1.0' },
       }));
     }
     if (method === 'tools/list') {
