@@ -123,7 +123,7 @@ async function fetchActivities(size = 5) {
   const url = `${COROS_BASE}/activity/query?size=${size}&pageNumber=1`;
   const res = await httpsRequest(url, { headers: authHeaders() });
 
-  if (res.status === 401 || res.data?.result === '1003') {
+  if (res.status === 401 || res.data?.result === '1003' || res.data?.result === '1019') {
     resetToken();
     throw new Error('unauthorized');
   }
@@ -158,7 +158,7 @@ async function fetchActivityDetail(activityId, sportType = '100') {
   const url = `${COROS_BASE}/activity/detail/query?labelId=${activityId}&sportType=${sportType}`;
   const res = await httpsRequest(url, { method: 'POST', headers: authHeaders() });
 
-  if (res.status === 401 || res.data?.result === '1003') {
+  if (res.status === 401 || res.data?.result === '1003' || res.data?.result === '1019') {
     resetToken();
     throw new Error('unauthorized');
   }
@@ -399,6 +399,7 @@ async function executeTool(name, args) {
       if (err.message === 'unauthorized' && attempt === 0) {
         console.log('[Coros MCP] Token expired, re-authenticating...');
         resetToken();
+        await login(); // force fresh token before retry
         continue;
       }
       throw err;
@@ -420,7 +421,7 @@ router.post('/', express.json(), async (req, res) => {
       return res.json(ok(id, {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
-        serverInfo: { name: 'dave-coros', version: '1.1.0' },
+        serverInfo: { name: 'dave-coros', version: '1.1.1' },
       }));
     }
     if (method === 'tools/list') {
