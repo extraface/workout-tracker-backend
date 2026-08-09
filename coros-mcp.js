@@ -217,8 +217,8 @@ function formatActivity(a) {
     lines.push(`  Cadence: ${a.avgCadence} spm`);
     if (a.step && a.distance) {
       const strideM = a.distance / (a.step / 2);
-      const strideFt = (strideM * 3.28084).toFixed(2);
-      lines.push(`  Stride Length: ${strideM.toFixed(2)}m (${strideFt}ft)`);
+      const strideIn = (strideM * 39.3701).toFixed(1);
+      lines.push(`  Stride Length: ${strideM.toFixed(2)}m (${strideIn}in)`);
     }
   }
   if (a.maxHeartRate) lines.push(`  Max HR: ${a.maxHeartRate} bpm`);
