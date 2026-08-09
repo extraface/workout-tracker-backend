@@ -213,7 +213,14 @@ function formatActivity(a) {
   if (a.distance)     lines.push(`  Distance: ${formatDistance(a.distance)}`);
   if (activeTime)     lines.push(`  Duration: ${formatDuration(activeTime)}`);
   if (a.distance && activeTime) lines.push(`  Pace: ${formatPace(a.distance, activeTime)}`);
-  if (a.avgHeartRate) lines.push(`  Avg HR: ${a.avgHeartRate} bpm`);
+  if (a.avgCadence) {
+    lines.push(`  Cadence: ${a.avgCadence} spm`);
+    if (a.step && a.distance) {
+      const strideM = a.distance / (a.step / 2);
+      const strideFt = (strideM * 3.28084).toFixed(2);
+      lines.push(`  Stride Length: ${strideM.toFixed(2)}m (${strideFt}ft)`);
+    }
+  }
   if (a.maxHeartRate) lines.push(`  Max HR: ${a.maxHeartRate} bpm`);
   if (a.calorie)      lines.push(`  Calories: ${Math.round(a.calorie / 1000)} kcal`);
   if (a.trainingLoad) lines.push(`  Training Load: ${a.trainingLoad}`);
