@@ -195,19 +195,22 @@ function formatPace(meters, seconds) {
   return `${min}:${sec} /mi`;
 }
 
-function formatTimestamp(ts) {
+function formatTimestamp(ts, tzOffset = 0) {
   if (!ts) return 'unknown';
   const s = String(ts);
-  // YYYYMMDDHHMMSS format from Coros
+  // YYYYMMDDHHMMSS format (some endpoints)
   if (s.length === 14) {
     return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)} ${s.slice(8,10)}:${s.slice(10,12)}`;
   }
-  return new Date(Number(ts) * 1000).toLocaleString('en-US');
+  // Unix timestamp — apply Coros startTimezone offset (units of 15 min)
+  const offsetMs = tzOffset * 15 * 60 * 1000;
+  const localDate = new Date(Number(ts) * 1000 + offsetMs);
+  return localDate.toLocaleString('en-US', { timeZone: 'UTC' });
 }
 
 function formatActivity(a) {
   const lines = [];
-  lines.push(`${a.sportName || a.name || 'Activity'} — ${formatTimestamp(a.startTime)}`);
+  lines.push(`${a.sportName || a.name || 'Activity'} — ${formatTimestamp(a.startTime, a.startTimezone || 0)}`);
   // Prefer workoutTime (active/moving time) over totalTime (elapsed incl. pauses)
   const activeTime = a.workoutTime || a.fitTime || a.movingTime || a.activeTime || a.totalTime;
   if (a.distance)     lines.push(`  Distance: ${formatDistance(a.distance)}`);
