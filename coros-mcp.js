@@ -208,9 +208,12 @@ function formatTimestamp(ts) {
 function formatActivity(a) {
   const lines = [];
   lines.push(`${a.sportName || a.name || 'Activity'} — ${formatTimestamp(a.startTime)}`);
+  // Prefer fitTime (moving/activity time) over totalTime (elapsed incl. pauses)
+  // Coros field names seen: fitTime, movingTime, activeTime — fall back to totalTime
+  const activeTime = a.fitTime || a.movingTime || a.activeTime || a.totalTime;
   if (a.distance)     lines.push(`  Distance: ${formatDistance(a.distance)}`);
-  if (a.totalTime)    lines.push(`  Duration: ${formatDuration(a.totalTime)}`);
-  if (a.distance && a.totalTime) lines.push(`  Pace: ${formatPace(a.distance, a.totalTime)}`);
+  if (activeTime)     lines.push(`  Duration: ${formatDuration(activeTime)}`);
+  if (a.distance && activeTime) lines.push(`  Pace: ${formatPace(a.distance, activeTime)}`);
   if (a.avgHeartRate) lines.push(`  Avg HR: ${a.avgHeartRate} bpm`);
   if (a.maxHeartRate) lines.push(`  Max HR: ${a.maxHeartRate} bpm`);
   if (a.calorie)      lines.push(`  Calories: ${Math.round(a.calorie / 1000)} kcal`);
@@ -269,6 +272,11 @@ const TOOLS = [
       },
       required: ['sport_type'],
     },
+  },
+  {
+    name: 'debug_raw_activity',
+    description: "Return raw JSON fields from the most recent Coros activity for debugging purposes.",
+    inputSchema: { type: 'object', properties: {}, required: [] },
   },
   {
     name: 'get_training_metrics',
@@ -366,6 +374,12 @@ async function executeTool(name, args) {
           const lines = [`Dave's ${matching.length} most recent ${args.sport_type} activities:\n`];
           for (const a of matching) { lines.push(formatActivity(a)); lines.push(''); }
           return lines.join('\n');
+        }
+
+        case 'debug_raw_activity': {
+          const activities = await fetchActivities(1);
+          if (!activities.length) return 'No activities found.';
+          return JSON.stringify(activities[0], null, 2);
         }
 
         case 'get_training_metrics': {
