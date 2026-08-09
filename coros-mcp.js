@@ -208,9 +208,8 @@ function formatTimestamp(ts) {
 function formatActivity(a) {
   const lines = [];
   lines.push(`${a.sportName || a.name || 'Activity'} — ${formatTimestamp(a.startTime)}`);
-  // Prefer fitTime (moving/activity time) over totalTime (elapsed incl. pauses)
-  // Coros field names seen: fitTime, movingTime, activeTime — fall back to totalTime
-  const activeTime = a.fitTime || a.movingTime || a.activeTime || a.totalTime;
+  // Prefer workoutTime (active/moving time) over totalTime (elapsed incl. pauses)
+  const activeTime = a.workoutTime || a.fitTime || a.movingTime || a.activeTime || a.totalTime;
   if (a.distance)     lines.push(`  Distance: ${formatDistance(a.distance)}`);
   if (activeTime)     lines.push(`  Duration: ${formatDuration(activeTime)}`);
   if (a.distance && activeTime) lines.push(`  Pace: ${formatPace(a.distance, activeTime)}`);
