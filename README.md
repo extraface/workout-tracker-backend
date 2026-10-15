@@ -315,6 +315,21 @@ https://workout-tracker-backend-production-c138.up.railway.app/summary?key=56d4a
 
 ---
 
+## Checks (run on every change)
+
+**Before every push:** `npm run check`
+- Syntax check of the app script in `index.html` and every backend file
+- Version check: fails if `index.html` changed without a version bump
+- All tests: summary/MCP endpoint (`summary.test.js`) and the app (`test/app.test.js`). The app tests load the real `index.html` in a simulated browser with a fake backend, click through every tab, log sets, undo, and run Reload from Sheet. They fail on any error, any "Failed…" alert, or a Sync Error.
+
+**Around every deploy:**
+- `npm run verify:baseline` before pushing (records total sets and MCP tools)
+- `npm run verify:live` after pushing: live app shows the new version, Railway health is ready, total sets didn't drop, and both MCP servers list all their tools
+
+**GitHub Actions** (`.github/workflows/checks.yml`) reruns `npm run check` on every push and only publishes the app to GitHub Pages if it passes. Railway's "Wait for CI" setting holds backend deploys the same way.
+
+**Not covered:** real writes to Google Sheets (needs a Google login). Log one set after a deploy that touches logging.
+
 ## Troubleshooting
 
 ### "Sync Error" Status
