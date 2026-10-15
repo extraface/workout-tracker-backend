@@ -823,14 +823,30 @@
         // Timed exercises configuration (measured in seconds instead of reps)
         const TIMED_EXERCISES = [
             'Ab Isometrics',
-            'Ab Iso Work'
+            'Ab Iso Work',
+            'Rope Shoulder Stretch'
         ];
         
         // Exercises that need BOTH time and weight (like holding two kettlebells)
+        // Weight can be single ("12 kg") or doubled ("2x12 kg")
         const TIMED_WITH_WEIGHT_EXERCISES = [
-            'Bottoms Up KB Holds'
+            'Bottoms Up KB Holds',
+            'Suitcase Carry'
         ];
-        
+
+        // Band colors recognized by the weight parser.
+        // Sorted longest-first so "light blue" wins over "blue", "turquoise" over "red"-style partial hits.
+        const BAND_COLORS = [
+            'red', 'orange', 'yellow', 'green', 'blue', 'purple', 'black', 'white',
+            'gray', 'grey', 'silver', 'gold', 'pink', 'brown', 'tan', 'beige',
+            'turquoise', 'teal', 'cyan', 'aqua', 'navy', 'maroon', 'burgundy',
+            'magenta', 'violet', 'lavender', 'lilac', 'lime', 'olive', 'mint',
+            'coral', 'salmon', 'peach', 'indigo', 'khaki', 'charcoal', 'cream',
+            'light blue', 'dark blue', 'sky blue', 'royal blue',
+            'light green', 'dark green', 'neon green', 'forest green',
+            'light pink', 'hot pink', 'dark red', 'neon yellow', 'camo'
+        ].sort((a, b) => b.length - a.length);
+
         // State
         let sessionId = null;
         let spreadsheetId = localStorage.getItem('spreadsheetId') || '1mvQLF5tHtR_ivU_aKfyIX54irHlGZCvdlxqJAt8KHh0';
@@ -1349,7 +1365,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.8</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.9</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1548,7 +1564,7 @@
                 const setBadge = setCount > 0 ? `<span class="set-badge">${setCount}/3</span>` : '';
                 
                 // Placeholder text and pre-fill value
-                let placeholder = isTimedWeight ? 'Weight (e.g., 8 kg)' : (isTimed ? 'Time (seconds)' : 'Weight (blank=BW)');
+                let placeholder = isTimedWeight ? 'Weight (12 kg or 2x12)' : (isTimed ? 'Time (seconds)' : 'Weight (blank=BW)');
                 let prefillWeight = '';
                 let prefillReps = '';
                 if (todaySets.length > 0) {
@@ -1606,7 +1622,7 @@
                                 ↶ Undo Last Set
                             </button>
                         ` : ''}
-                        <div class="weight-hint">${isTimedWeight ? 'Time in seconds, weight per KB' : (isTimed ? 'Enter time in seconds' : 'Ex: 25, 25 kg, red, NA')}</div>
+                        <div class="weight-hint">${isTimedWeight ? 'Time in seconds · Ex: 12 kg, 2x12 kg' : (isTimed ? 'Enter time in seconds' : 'Ex: 25, 25 kg, red, NA')}</div>
                         <div class="logged-sets" id="logged-${idx}">${todaySetsDisplay}</div>
                     </div>
                 `;
@@ -1634,9 +1650,12 @@
                 if (set.unit.includes('×')) {
                     // Unit already has format like "2×8 kg", use as-is
                     return `${set.reps}s @ ${set.unit}`;
-                } else {
-                    // Old format or single weight, add 2× prefix
+                } else if (set.exercise && normalizeExerciseName(set.exercise) === 'bottoms up kb holds') {
+                    // Legacy KB hold rows stored per-hand weight without the × format
                     return `${set.reps}s @ 2×${set.weight} ${set.unit}`;
+                } else {
+                    // Single weight (e.g., one-hand Suitcase Carry): "60s @ 12 kg"
+                    return `${set.reps}s @ ${set.weight} ${set.unit}`;
                 }
             }
             
@@ -1648,7 +1667,7 @@
             const reps = `${set.reps} reps`;
             
             // Check for band colors FIRST (before BW check) - FIX for band display bug
-            const bandColors = ['red', 'blue', 'black', 'green', 'purple', 'yellow', 'orange'];
+            const bandColors = BAND_COLORS;
             const unitLower = (set.unit || '').toLowerCase();
             if (bandColors.some(color => unitLower.includes(color))) {
                 return `${reps} (${set.unit})`;
@@ -1709,10 +1728,10 @@
             }
             
             // Handle band colors
-            const bands = ['red', 'blue', 'black', 'green', 'purple', 'yellow', 'orange'];
+            const bands = BAND_COLORS;
             for (const band of bands) {
                 if (str.includes(band)) {
-                    const bandName = band.charAt(0).toUpperCase() + band.slice(1);
+                    const bandName = band.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
                     const unit = `${bandName} Band`;
                     // Remember this band for this exercise
                     if (exercise) sessionUnitMemory[exercise] = unit;
@@ -1809,7 +1828,7 @@
             }
             
             // Don't show preview for band colors (they're complete)
-            const bands = ['red', 'blue', 'black', 'green', 'purple', 'yellow', 'orange'];
+            const bands = BAND_COLORS;
             if (bands.some(band => str === band || str === band + ' band')) {
                 preview.textContent = '';
                 return;
@@ -2241,10 +2260,13 @@
                     
                     // Check if this is a timed exercise
                     const isTimed = isTimedExercise(e.exercise);
+                    const isTimedWeight = isTimedWithWeight(e.exercise);
                     
                     // Format each set properly
                     let setDisplay;
-                    if (isTimed) {
+                    if (isTimedWeight) {
+                        setDisplay = formatWeight(e, true);
+                    } else if (isTimed) {
                         setDisplay = `${e.reps}s`;
                     } else if (!e.weight || e.weight === 0 || e.unit === 'BW') {
                         if (e.unit && e.unit !== 'NA' && e.unit !== 'BW') {

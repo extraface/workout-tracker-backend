@@ -82,7 +82,7 @@ Ab Iso Work
 | `25 lb x 2` | 2×25 lbs | Also works! |
 
 ### Supported Band Colors
-Red, Blue, Black, Green, Purple, Yellow, Orange
+About 50 colors, including Red, Orange, Yellow, Green, Blue, Purple, Black, White, Gray/Grey, Pink, Brown, Tan, Turquoise, Teal, Navy, Gold, Silver, Lime, Mint, Coral, Lavender, plus two-word shades like Light Blue, Dark Green and Hot Pink. Type the color (or "color band"); it saves as e.g. "Turquoise Band". The list lives in `BAND_COLORS` in `index.html`.
 
 ### Smart Defaults (Within a Session)
 
@@ -105,10 +105,12 @@ Standard reps + weight tracking. Most exercises.
 ### Timed Exercises (seconds only)
 - Ab Isometrics
 - Ab Iso Work
+- Rope Shoulder Stretch
 
 ### Timed + Weight Exercises
 - Bottoms Up KB Holds* - Enter seconds in reps field, weight per KB in weight field
-- Display: "45s @ 2×8 kg"
+- Suitcase Carry - Enter seconds; weight as `12 kg` (one hand) or `2x12 kg` (both hands)
+- Display: "45s @ 2×8 kg", "60s @ 12 kg"
 
 ### Starred Exercises (Doubled Weight)
 Mark with `*` for two-dumbbell/two-kettlebell exercises. Input per-hand weight, app doubles for total and display.
@@ -126,7 +128,7 @@ Only shows for numeric weights (not bands or bodyweight). Great reference after 
 
 ## Deload Tracking
 
-Check **"🔻 This is a deload session"** when starting a workout to flag all sets as deload. Auto-resets after finishing workout. Stored in Google Sheets column G for analysis filtering.
+The deload checkbox was removed in v2.17.8. Older sessions keep their deload flag in the Sheet, and the summary endpoint can still filter them with `&deload=exclude`.
 
 ## Undo Feature
 
@@ -261,16 +263,12 @@ Automatically strips parentheticals and asterisks for analysis:
 ## Known Issues & Future Enhancements
 
 ### 🐛 Open Bugs
-1. **Doubled-weight display formatting in summary** — exercises like Swiss Ball TWM show `8×6 2×3 lbs` instead of clean formatting. Cosmetic only, data is correct.
-2. **Ab Isometrics shows "reps" instead of "seconds"** — label issue in summary endpoint only.
-3. **Deload checkbox not persisting across page reloads** — if the app refreshes mid-workout, the deload flag resets. Fix: save checkbox state to localStorage.
+1. **Reload from Sheet shows a false failure and Sync Error** — the reload succeeds, then re-selecting the Settings tab crashes because `switchTab()` relies on the click event. Fix: highlight the tab by name.
 
 ### 🔮 Future Enhancements
 1. **Trend calculation should account for weight changes** — currently compares avg reps only. A rep drop due to a weight increase should not read as "declining".
 2. **Case-insensitive exercise name deduplication** — "KB floor Press" and "KB Floor Press" are tracked separately. Need normalization on data entry or a merge tool.
 3. **Band resistance tracking** — add resistance values per band color to enable volume calculation for band exercises. Values need to be user-configured (different brands/thicknesses).
-4. **Pre-deload weight hints** — after a deload session, show "Pre-deload: 10 reps × 60 lbs (Jan 15)" alongside the regular Last: display to help return to prior weights.
-5. **Coros running data integration** — add running data from Coros watch to the summary endpoint via third-party MCP.
 
 ---
 
@@ -306,7 +304,7 @@ https://workout-tracker-backend-production-c138.up.railway.app/summary?key=56d4a
 - Alternating **Workout A** and **Workout B**, 2–4x per week
 - Exercises marked `*` use **doubled weights** — weight shown is total load (two dumbbells/kettlebells)
 - **Band exercises** (Blue Band) have no numeric weight — excluded from PRs
-- **Timed exercises** (Ab Isometrics, Bottoms Up KB Holds) use seconds in the reps field
+- **Timed exercises** (Ab Isometrics, Ab Iso Work, Rope Shoulder Stretch, Bottoms Up KB Holds, Suitcase Carry) use seconds in the reps field; the summary shows them as `60s`
 - **Deload sessions** are flagged — use `&deload=exclude` for true performance trends
 - Data goes back to **January 8, 2026**
 
@@ -367,6 +365,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 - `README.md` - This file
 
 ## Version History
+
+**v2.17.9** (October 2026) - ~50 band colors (incl. turquoise); Suitcase Carry timed with one- or two-hand weight; Rope Shoulder Stretch timed; summary endpoint shows seconds for timed exercises and cleaner doubled-weight display
 
 **v2.17** (March 2026) - Add Weight(kg) column for cross-unit weight comparison
 

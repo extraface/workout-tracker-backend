@@ -22,6 +22,10 @@ const {
   isNumericUnit,
   parseDoubledWeight,
   getCacheKey,
+  isTimedExercise,
+  repsLabel,
+  formatSessionSets,
+  computeExerciseHistory: computeExerciseHistoryFn,
 } = require('./summary');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -519,5 +523,71 @@ describe('applyParamFilters', () => {
     const result = applyParamFilters(entries, { cutoffDate: null, deload: null, name: 'cable fly' });
     expect(result).toHaveLength(1);
     expect(result[0].exercise).toBe('Cable Fly');
+  });
+});
+
+
+// ─── Timed exercises & doubled-weight display (v2.17.9) ─────────────────────
+
+describe('timed exercises', () => {
+  test('recognizes timed exercises, ignoring case, stars and parentheticals', () => {
+    expect(isTimedExercise('Suitcase Carry')).toBe(true);
+    expect(isTimedExercise('suitcase carry*')).toBe(true);
+    expect(isTimedExercise('Rope Shoulder Stretch')).toBe(true);
+    expect(isTimedExercise('Ab Isometrics')).toBe(true);
+    expect(isTimedExercise('Bottoms Up KB Holds (8 kg)')).toBe(true);
+    expect(isTimedExercise('Cable Fly')).toBe(false);
+  });
+
+  test('repsLabel shows seconds for timed, reps otherwise', () => {
+    expect(repsLabel('Suitcase Carry', 60)).toBe('60s');
+    expect(repsLabel('Cable Fly', 15)).toBe('15 reps');
+  });
+});
+
+describe('formatSessionSets', () => {
+  const session = (sets) => ({ sets });
+
+  test('suitcase carry, single weight', () => {
+    const out = formatSessionSets(session([makeEntry({ exercise: 'Suitcase Carry', reps: 60, weight: 12, unit: 'kg' })]));
+    expect(out).toBe('  Suitcase Carry: 60s @ 12 kg');
+  });
+
+  test('suitcase carry, both hands', () => {
+    const out = formatSessionSets(session([makeEntry({ exercise: 'Suitcase Carry', reps: 45, weight: 24, unit: '2×12 kg' })]));
+    expect(out).toBe('  Suitcase Carry: 45s @ 2×12 kg');
+  });
+
+  test('rope shoulder stretch shows seconds only', () => {
+    const out = formatSessionSets(session([makeEntry({ exercise: 'Rope Shoulder Stretch', reps: 20, weight: 0, unit: 'BW' })]));
+    expect(out).toBe('  Rope Shoulder Stretch: 20s');
+  });
+
+  test('doubled weight no longer concatenates total and per-hand', () => {
+    const out = formatSessionSets(session([makeEntry({ exercise: 'Floor Press', reps: 11, weight: 36, unit: '2×18 lbs' })]));
+    expect(out).toBe('  Floor Press: 11 reps @ 2×18 lbs');
+  });
+
+  test('regular weight and bands unchanged', () => {
+    const out = formatSessionSets(session([
+      makeEntry({ exercise: 'Cable Fly', reps: 15, weight: 30, unit: 'lbs' }),
+      makeEntry({ exercise: 'Band Pullaparts', reps: 10, weight: 0, unit: 'Turquoise Band' }),
+    ]));
+    expect(out).toBe('  Cable Fly: 15×30 lbs\n  Band Pullaparts: 10 reps (Turquoise Band)');
+  });
+});
+
+describe('exercise history labels', () => {
+  test('timed history uses seconds and doubled units cleanly', () => {
+    const entries = [makeEntry({ exercise: 'Suitcase Carry', reps: 60, weight: 24, unit: '2×12 kg' })];
+    const [h] = computeExerciseHistoryFn(entries);
+    expect(h.last5[0]).toMatch(/1×60s @ 2×12 kg$/);
+  });
+});
+
+describe('computePRs doubled display', () => {
+  test('keeps the per-hand display for doubled weights', () => {
+    const prs = computePRs([makeEntry({ exercise: 'Floor Press', reps: 11, weight: 36, unit: '2×18 lbs' })]);
+    expect(prs.get('Floor Press').display).toBe('2×18 lbs');
   });
 });

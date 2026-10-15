@@ -26,6 +26,29 @@ const RATE_LIMIT_WINDOW_MS = 60000;
 const VALID_MODES = ['full', 'recent', 'prs', 'exercise'];
 const NON_NUMERIC_UNITS = new Set(['BW', 'NA', 'bodyweight', 'n/a', 'seconds']);
 
+// Timed exercises: the Reps column holds seconds. Keep in sync with index.html.
+const TIMED_EXERCISES = ['Ab Isometrics', 'Ab Iso Work', 'Rope Shoulder Stretch'];
+const TIMED_WITH_WEIGHT_EXERCISES = ['Bottoms Up KB Holds', 'Suitcase Carry'];
+
+function normalizeExerciseName(name) {
+  return String(name || '').replace(/\*/g, '').replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();
+}
+
+function isTimedExercise(name) {
+  const n = normalizeExerciseName(name);
+  return [...TIMED_EXERCISES, ...TIMED_WITH_WEIGHT_EXERCISES].some(t => normalizeExerciseName(t) === n);
+}
+
+/** "60s" for timed exercises, "10 reps" otherwise. */
+function repsLabel(exercise, reps) {
+  return isTimedExercise(exercise) ? `${reps}s` : `${reps} reps`;
+}
+
+/** Weight text: doubled units ("2×12 kg") stand alone; otherwise "12 kg". */
+function weightLabel(weight, unit) {
+  return String(unit || '').includes('×') ? unit : `${weight} ${unit}`;
+}
+
 // ─── In-memory cache (per param combination) ─────────────────────────────────
 
 const summaryCache = new Map();
@@ -325,7 +348,8 @@ function computePRs(entries) {
         weight: effectiveWeight,
         unit: effectiveUnit,
         weightKg: effectiveKg,
-        date: entry.date
+        date: entry.date,
+        ...(doubled ? { display: entry.unit } : {})
       });
       continue;
     }
@@ -336,7 +360,8 @@ function computePRs(entries) {
         weight: effectiveWeight,
         unit: effectiveUnit,
         weightKg: effectiveKg,
-        date: entry.date
+        date: entry.date,
+        ...(doubled ? { display: entry.unit } : {})
       });
     } else if (effectiveKg === existing.weightKg && entry.reps > existing.reps) {
       prMap.set(entry.exercise, {
@@ -380,9 +405,13 @@ function computeExerciseHistory(entries) {
       const maxWeight = weights.length > 0 ? Math.max(...weights) : null;
       const unit = s.sets.find(e => e.weight > 0)?.unit || '';
       const dateLabel = s.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      return maxWeight
-        ? `${dateLabel}: ${s.sets.length}×${avgReps} @ ${maxWeight} ${unit}`
-        : `${dateLabel}: ${s.sets.length}×${avgReps}`;
+      const timed = isTimedExercise(exercise) ? 's' : '';
+      const maxWeightStr = maxWeight
+        ? weightLabel(maxWeight, s.sets.find(e => e.weight === maxWeight)?.unit || unit)
+        : null;
+      return maxWeightStr
+        ? `${dateLabel}: ${s.sets.length}×${avgReps}${timed} @ ${maxWeightStr}`
+        : `${dateLabel}: ${s.sets.length}×${avgReps}${timed}`;
     });
 
     // Trend: compare avg reps of last 3 sessions vs prior 3
@@ -425,8 +454,15 @@ function formatSessionSets(session) {
   const lines = [];
   for (const [exercise, sets] of byExercise.entries()) {
     const setSummaries = sets.map(e => {
+      if (isTimedExercise(e.exercise)) {
+        return e.weight > 0 && isNumericUnit(e.unit)
+          ? `${e.reps}s @ ${weightLabel(e.weight, e.unit)}`
+          : `${e.reps}s`;
+      }
       if (e.weight > 0 && isNumericUnit(e.unit)) {
-        return `${e.reps}×${e.weight} ${e.unit}`;
+        return String(e.unit).includes('×')
+          ? `${e.reps} reps @ ${e.unit}`
+          : `${e.reps}×${e.weight} ${e.unit}`;
       } else if (e.unit && e.unit !== 'NA') {
         return `${e.reps} reps (${e.unit})`;
       } else {
@@ -490,7 +526,7 @@ function formatSummaryText(data, params, allEntries) {
       const sorted = Array.from(data.prs.entries()).sort((a, b) => a[0].localeCompare(b[0]));
       for (const [exercise, pr] of sorted) {
         const pad = ' '.repeat(Math.max(0, 30 - exercise.length));
-        lines.push(`${exercise}${pad}${pr.reps} reps × ${pr.weight} ${pr.unit}  (${formatDate(pr.date)})`);
+        lines.push(`${exercise}${pad}${repsLabel(exercise, pr.reps)} × ${pr.display || `${pr.weight} ${pr.unit}`}  (${formatDate(pr.date)})`);
       }
     }
     lines.push('');
@@ -533,7 +569,7 @@ function formatSummaryText(data, params, allEntries) {
 
       if (data.prs.size > 0) {
         const pr = data.prs.values().next().value;
-        lines.push(`PR: ${pr.reps} reps × ${pr.weight} ${pr.unit} (${formatDate(pr.date)})`);
+        lines.push(`PR: ${repsLabel(ex.exercise, pr.reps)} × ${pr.display || `${pr.weight} ${pr.unit}`} (${formatDate(pr.date)})`);
       }
 
       lines.push('\nAll sessions (newest first):');
@@ -542,8 +578,8 @@ function formatSummaryText(data, params, allEntries) {
         lines.push(`\n  ${formatDate(session.date)} (Workout ${session.workout})${deloadTag}`);
         for (const entry of session.sets) {
           const weightStr = entry.weight > 0 && isNumericUnit(entry.unit)
-            ? ` @ ${entry.weight} ${entry.unit}` : entry.unit ? ` (${entry.unit})` : '';
-          lines.push(`    ${entry.reps} reps${weightStr}`);
+            ? ` @ ${weightLabel(entry.weight, entry.unit)}` : entry.unit ? ` (${entry.unit})` : '';
+          lines.push(`    ${repsLabel(entry.exercise, entry.reps)}${weightStr}`);
         }
       }
     }
@@ -720,6 +756,8 @@ function registerRoutes(app) {
 
 module.exports = {
   registerRoutes,
+  isTimedExercise,
+  repsLabel,
   buildSummary,
   parseParams,
   // Pure functions exported for testing:
@@ -731,6 +769,7 @@ module.exports = {
   computeExerciseHistory,
   computeTrend,
   formatSummaryText,
+  formatSessionSets,
   parseParams,
   verifyApiKey,
   checkRateLimit,
