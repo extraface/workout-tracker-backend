@@ -269,6 +269,7 @@ None known.
 1. **Trend calculation should account for weight changes** — currently compares avg reps only. A rep drop due to a weight increase should not read as "declining".
 2. **Case-insensitive exercise name deduplication** — "KB floor Press" and "KB Floor Press" are tracked separately. Need normalization on data entry or a merge tool.
 3. **Band resistance tracking** — add resistance values per band color to enable volume calculation for band exercises. Values need to be user-configured (different brands/thicknesses).
+4. **Decide whether to retire the custom Coros MCP** — COROS now has an official MCP connector (claude.ai/directory/coros) with sleep, HRV, resting HR, stress, recovery, fitness/load assessment, laps and FIT files. Use it alongside ours for a few weeks (added Oct 2026), then decide whether `coros-mcp.js` is still needed.
 
 ---
 
