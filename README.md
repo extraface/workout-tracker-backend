@@ -263,7 +263,7 @@ Automatically strips parentheticals and asterisks for analysis:
 ## Known Issues & Future Enhancements
 
 ### 🐛 Open Bugs
-1. **Reload from Sheet shows a false failure and Sync Error** — the reload succeeds, then re-selecting the Settings tab crashes because `switchTab()` relies on the click event. Fix: highlight the tab by name.
+None known.
 
 ### 🔮 Future Enhancements
 1. **Trend calculation should account for weight changes** — currently compares avg reps only. A rep drop due to a weight increase should not read as "declining".
@@ -365,6 +365,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 - `README.md` - This file
 
 ## Version History
+
+**v2.17.10** (October 2026) - Fix Reload from Sheet showing a false failure and Sync Error
 
 **v2.17.9** (October 2026) - ~50 band colors (incl. turquoise); Suitcase Carry timed with one- or two-hand weight; Rope Shoulder Stretch timed; summary endpoint shows seconds for timed exercises and cleaner doubled-weight display
 

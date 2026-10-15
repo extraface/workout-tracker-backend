@@ -1365,7 +1365,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.9</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.10</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1492,7 +1492,9 @@
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             
-            event.target.classList.add('active');
+            // Select the tab by name: switchTab() is also called after Reload from Sheet, when there is no click event
+            const tabBtn = document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`);
+            if (tabBtn) tabBtn.classList.add('active');
             document.getElementById(tabName).classList.add('active');
             
             if (tabName === 'history') {
