@@ -161,7 +161,7 @@ Suggests alternating A/B based on your last completed workout:
 ## Data Management
 
 ### Multi-Device Usage
-Spreadsheet ID is hardcoded as default - just sign in on any device and you're connected automatically.
+Spreadsheet ID is hardcoded as default. On a new device, enter the access code once (the `APP_TOKEN` value from Railway) and you're connected. There's no Google sign-in, so nothing expires after deploys, restarts, or a few days.
 
 ### CSV Export
 Settings → Export to CSV. Dates in ISO format matching Google Sheets for easy copy/paste.
@@ -233,7 +233,7 @@ GET /summary?key=YOUR_KEY
 Three Railway environment variables needed:
 1. `SUMMARY_API_KEY` — your secret key
 2. `SUMMARY_SPREADSHEET_ID` — your sheet ID
-3. `GOOGLE_SERVICE_ACCOUNT_JSON` — Google Service Account JSON key (see `.env.example`)
+3. `GOOGLE_SERVICE_ACCOUNT_JSON` — Google Service Account JSON key (see `.env.example`). The summary endpoint only reads, but the app writes through the same account, so the sheet is shared with it as **Editor**.
 
 ### Notes
 - Responses are cached for 60 seconds per unique parameter combination
@@ -269,7 +269,6 @@ None known.
 1. **Trend calculation should account for weight changes** — currently compares avg reps only. A rep drop due to a weight increase should not read as "declining".
 2. **Case-insensitive exercise name deduplication** — "KB floor Press" and "KB Floor Press" are tracked separately. Need normalization on data entry or a merge tool.
 3. **Band resistance tracking** — add resistance values per band color to enable volume calculation for band exercises. Values need to be user-configured (different brands/thicknesses).
-4. **Decide whether to retire the custom Coros MCP** — COROS now has an official MCP connector (claude.ai/directory/coros) with sleep, HRV, resting HR, stress, recovery, fitness/load assessment, laps and FIT files. Use it alongside ours for a few weeks (added Oct 2026), then decide whether `coros-mcp.js` is still needed.
 
 ---
 
@@ -325,17 +324,18 @@ https://workout-tracker-backend-production-c138.up.railway.app/summary?key=56d4a
 
 **Around every deploy:**
 - `npm run verify:baseline` before pushing (records total sets and MCP tools)
-- `npm run verify:live` after pushing: live app shows the new version, Railway health is ready, total sets didn't drop, and both MCP servers list all their tools
+- `npm run verify:live` after pushing: live app shows the new version, Railway health is ready, total sets didn't drop, the MCP server lists all its tools, Sheets routes reject requests without the access code, and the removed sign-in and Coros routes return 404. With `APP_TOKEN` and `SPREADSHEET_ID` set in the environment it also reads the sheet through the service account (nothing is written)
 
 **GitHub Actions** (`.github/workflows/checks.yml`) reruns `npm run check` on every push and only publishes the app to GitHub Pages if it passes. Railway's "Wait for CI" setting holds backend deploys the same way.
 
-**Not covered:** real writes to Google Sheets (needs a Google login). Log one set after a deploy that touches logging.
+**Not covered:** real writes to Google Sheets (verify-live never writes to the real sheet). Log one set after a deploy that touches logging.
 
 ## Troubleshooting
 
 ### "Sync Error" Status
 1. Check internet connection
-2. Sign out and back in (Settings → Sign Out)
+2. If the app shows the access-code screen, re-enter the code from Railway's `APP_TOKEN`
+3. Writes failing but reads working: make sure the service account is still an **Editor** on the sheet
 
 ### Data Out of Sync
 Settings → Reload from Sheet
@@ -354,7 +354,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 - **Frontend**: Single-page HTML/CSS/JS (`index.html`) on GitHub Pages
 - **Backend**: Node.js/Express (`server.js`) on Railway
 - **Database**: Google Sheets API v4
-- **Auth**: OAuth 2.0
+- **Auth**: per-device access code (`APP_TOKEN`); Sheets access through a Google service account (`GOOGLE_SERVICE_ACCOUNT_JSON`)
+- **Running/health data**: COROS's official MCP connector (the custom `coros-mcp.js` was retired in v2.18.0)
 
 ### URLs
 - **Frontend:** `https://extraface.github.io/workout-tracker-backend/`
@@ -375,12 +376,15 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 
 - `index.html` - Frontend application
 - `server.js` - Backend API server
+- `auth.js` - Access-code check and service-account Sheets auth
 - `package.json` - Node.js dependencies
 - `SETUP_GUIDE.md` - Deployment instructions
 - `WORKOUT_TRACKER_UPDATES_2026-02-13.md` - Session notes Feb 13 2026
 - `README.md` - This file
 
 ## Version History
+
+**v2.18.0** (November 2026) - Replace Google sign-in with a one-time access code; the backend writes through its service account, so sessions no longer expire after deploys, restarts or a few days. Retire the custom Coros MCP (`/coros-mcp`) in favor of COROS's official connector. Remove "Create New Sheet".
 
 **v2.17.10** (October 2026) - Fix Reload from Sheet showing a false failure and Sync Error
 

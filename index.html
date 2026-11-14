@@ -848,7 +848,7 @@
         ].sort((a, b) => b.length - a.length);
 
         // State
-        let sessionId = null;
+        let appToken = null;
         let spreadsheetId = localStorage.getItem('spreadsheetId') || '1mvQLF5tHtR_ivU_aKfyIX54irHlGZCvdlxqJAt8KHh0';
         let workouts = JSON.parse(localStorage.getItem('workouts')) || { A: [], B: [] };
         let workoutLog = [];
@@ -907,59 +907,28 @@
         async function init() {
             loadFromLocalStorage();
             
-            // Check URL for session parameter (returned from OAuth)
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionParam = urlParams.get('session');
-            const error = urlParams.get('error');
+            // The access code is entered once per device and kept in localStorage
+            appToken = localStorage.getItem('appToken');
+            const valid = appToken ? await checkSession() : false;
             
-            if (error) {
-                alert('Authentication failed. Please try again.');
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-            
-            if (sessionParam) {
-                sessionId = sessionParam;
-                localStorage.setItem('sessionId', sessionId);
-                window.history.replaceState({}, document.title, window.location.pathname);
-                
-                // Load config and data from sheet
+            if (valid === null) {
+                // Offline or backend restarting: keep the code and use local data
+                renderApp();
+                setSyncStatus('error');
+            } else if (valid) {
                 if (spreadsheetId) {
-                    // Try to load config, initialize if doesn't exist
-                    const configLoaded = await loadConfig();
-                    if (!configLoaded) {
-                        await initializeConfig();
+                    // Load config if not cached or empty
+                    if (!workouts.A || workouts.A.length === 0 || !workouts.B || workouts.B.length === 0) {
+                        const configLoaded = await loadConfig();
+                        if (!configLoaded) {
+                            await initializeConfig();
+                        }
                     }
                     await loadFromSheet();
                 }
-                
                 renderApp();
             } else {
-                // Check if we have a stored session
-                sessionId = localStorage.getItem('sessionId');
-                
-                if (sessionId) {
-                    // Verify session is still valid
-                    const isValid = await checkSession();
-                    if (isValid) {
-                        if (spreadsheetId) {
-                            // Load config if not cached or empty
-                            if (!workouts.A || workouts.A.length === 0 || !workouts.B || workouts.B.length === 0) {
-                                const configLoaded = await loadConfig();
-                                if (!configLoaded) {
-                                    await initializeConfig();
-                                }
-                            }
-                            await loadFromSheet();
-                        }
-                        renderApp();
-                    } else {
-                        sessionId = null;
-                        localStorage.removeItem('sessionId');
-                        renderAuthScreen();
-                    }
-                } else {
-                    renderAuthScreen();
-                }
+                renderAuthScreen(!!appToken);
             }
         }
 
@@ -970,8 +939,8 @@
                 ...options.headers
             };
             
-            if (sessionId) {
-                headers['X-Session-Id'] = sessionId;
+            if (appToken) {
+                headers['X-App-Token'] = appToken;
             }
             
             const response = await fetch(`${API_URL}${endpoint}`, {
@@ -991,80 +960,25 @@
                 const result = await apiCall('/auth/check');
                 return result.authenticated;
             } catch (error) {
-                return false;
+                return null; // Backend unreachable: can't tell either way
             }
         }
 
-        async function startAuth() {
-            try {
-                const result = await apiCall('/auth/url');
-                window.location.href = result.authUrl;
-            } catch (error) {
-                console.error('Auth error:', error);
-                alert('Failed to start authentication. Please check console.');
-            }
-        }
-
-        async function createSheet() {
-            try {
-                setSyncStatus('syncing');
-                const result = await apiCall('/sheets/create', { method: 'POST' });
-                spreadsheetId = result.spreadsheetId;
-                localStorage.setItem('spreadsheetId', spreadsheetId);
-                
-                // Upload existing local data if any
-                if (workoutLog.length > 0) {
-                    // Sort by date (oldest first)
-                    const sortedLog = [...workoutLog].sort((a, b) => new Date(a.date) - new Date(b.date));
-                    
-                    let uploaded = 0;
-                    let failed = 0;
-                    
-                    // Update header to show progress
-                    const headerStats = document.getElementById('headerStats');
-                    if (headerStats) {
-                        headerStats.textContent = `Uploading workout history... (0/${sortedLog.length})`;
-                    }
-                    
-                    for (const entry of sortedLog) {
-                        try {
-                            await addEntry(entry, true); // Suppress individual alerts
-                            uploaded++;
-                            
-                            // Update progress
-                            if (headerStats) {
-                                headerStats.textContent = `Uploading workout history... (${uploaded}/${sortedLog.length})`;
-                            }
-                        } catch (error) {
-                            failed++;
-                            console.error('Failed to upload entry:', entry, error);
-                        }
-                        
-                        // Small delay to avoid rate limiting (100ms between entries)
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    }
-                    
-                    setSyncStatus('synced');
-                    
-                    // Show results
-                    if (failed > 0) {
-                        alert(`Sheet created!\n\nUploaded: ${uploaded} entries\nFailed: ${failed} entries\n\nYour data is safe locally. Consider exporting CSV as backup.\n\nView at:\n${result.url}`);
-                    } else {
-                        alert(`Sheet created successfully!\n\nUploaded ${uploaded} workout entries.\n\nView at:\n${result.url}`);
-                    }
-                } else {
-                    setSyncStatus('synced');
-                    alert(`Sheet created successfully!\n\nView it at:\n${result.url}`);
-                }
-                
-                // Refresh the app to show the new sheet ID
-                renderApp();
-                return true;
-            } catch (error) {
-                setSyncStatus('error');
-                console.error('Create sheet error:', error);
-                alert('Failed to create sheet. Please check console and try again.');
-                return false;
+        async function saveAccessCode() {
+            const input = document.getElementById('accessCode');
+            const code = input ? input.value.trim() : '';
+            if (!code) return;
+            appToken = code;
+            const valid = await checkSession();
+            if (valid === null) {
+                appToken = null;
+                alert("Can't reach the server right now. Try again in a minute.");
+            } else if (valid) {
+                localStorage.setItem('appToken', appToken);
+                await init();
+            } else {
+                appToken = null;
+                renderAuthScreen(true);
             }
         }
 
@@ -1119,7 +1033,7 @@
         }
 
         async function loadConfig() {
-            if (!spreadsheetId || !sessionId) return false;
+            if (!spreadsheetId || !appToken) return false;
             
             try {
                 const result = await apiCall(`/sheets/${spreadsheetId}/config`);
@@ -1138,7 +1052,7 @@
         }
         
         async function initializeConfig() {
-            if (!spreadsheetId || !sessionId) return false;
+            if (!spreadsheetId || !appToken) return false;
             
             try {
                 const result = await apiCall(`/sheets/${spreadsheetId}/config/initialize`, {
@@ -1161,7 +1075,7 @@
         }
         
         async function saveConfig() {
-            if (!spreadsheetId || !sessionId) {
+            if (!spreadsheetId || !appToken) {
                 console.log('Cannot save config - not connected');
                 return false;
             }
@@ -1184,7 +1098,7 @@
         }
 
         async function loadFromSheet() {
-            if (!spreadsheetId || !sessionId) return;
+            if (!spreadsheetId || !appToken) return;
             
             try {
                 setSyncStatus('syncing');
@@ -1199,7 +1113,7 @@
         }
 
         async function reloadFromSheet() {
-            if (!spreadsheetId || !sessionId) {
+            if (!spreadsheetId || !appToken) {
                 alert('No sheet connected');
                 return;
             }
@@ -1242,7 +1156,7 @@
         }
 
         async function addEntry(entry, suppressAlert = false) {
-            if (!spreadsheetId || !sessionId) {
+            if (!spreadsheetId || !appToken) {
                 console.warn('No sheet ID or session, saving locally only');
                 return;
             }
@@ -1260,19 +1174,13 @@
                 if (!suppressAlert) {
                     alert('Warning: Failed to sync to Google Sheets. Data saved locally.');
                 }
-                throw error; // Re-throw so createSheet can catch it
+                throw error; // Re-throw so callers can react
             }
         }
 
         async function logout() {
-            try {
-                await apiCall('/auth/logout', { method: 'POST' });
-            } catch (error) {
-                console.error('Logout error:', error);
-            }
-            
-            sessionId = null;
-            localStorage.removeItem('sessionId');
+            appToken = null;
+            localStorage.removeItem('appToken');
             localStorage.removeItem('spreadsheetId');
             
             // Reset to hardcoded default
@@ -1331,19 +1239,20 @@
         }
 
         // Rendering
-        function renderAuthScreen() {
+        function renderAuthScreen(rejected = false) {
             document.getElementById('app').innerHTML = `
                 <div class="auth-screen">
                     <div class="auth-logo">💪</div>
                     <h1 class="auth-title">Workout Tracker</h1>
                     <p class="auth-subtitle">
-                        Track your workouts seamlessly with Google Sheets. 
-                        Your data syncs automatically and is accessible anywhere.
+                        Enter your access code to connect this device.
+                        You only need to do this once.
                     </p>
-                    <button class="google-btn" onclick="startAuth()">
-                        <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><path d="M17.6 9.2l-.1-1.8H9v3.4h4.8C13.6 12 13 13 12 13.6v2.2h3a8.8 8.8 0 0 0 2.6-6.6z" fill="#4285F4"/><path d="M9 18c2.4 0 4.5-.8 6-2.2l-3-2.2a5.4 5.4 0 0 1-8-2.9H1V13a9 9 0 0 0 8 5z" fill="#34A853"/><path d="M4 10.7a5.4 5.4 0 0 1 0-3.4V5H1a9 9 0 0 0 0 8l3-2.3z" fill="#FBBC05"/><path d="M9 3.6c1.3 0 2.5.4 3.4 1.3L15 2.3A9 9 0 0 0 1 5l3 2.4a5.4 5.4 0 0 1 5-3.7z" fill="#EA4335"/></g></svg>
-                        Connect Google Sheets
-                    </button>
+                    <input type="password" id="accessCode" placeholder="Access code" autocomplete="current-password"
+                        style="width: 100%; max-width: 320px; padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid var(--border, #ccc); font-size: 16px;"
+                        onkeydown="if (event.key === 'Enter') saveAccessCode()">
+                    ${rejected ? '<p class="auth-subtitle" style="color: #d93025;">That code didn\'t work. Check it and try again.</p>' : ''}
+                    <button class="google-btn" onclick="saveAccessCode()">Connect</button>
                 </div>
             `;
         }
@@ -1365,7 +1274,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.17.10</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.18.0</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1421,8 +1330,6 @@
                                 <input type="text" value="${spreadsheetId || 'Not set'}" disabled>
                             </div>
                             ${!spreadsheetId ? `
-                                <button class="btn" onclick="createSheet()">Create New Sheet</button>
-                                <div style="margin: 16px 0; text-align: center; color: var(--text-secondary);">— OR —</div>
                                 <div class="settings-item">
                                     <label>Connect to Existing Sheet</label>
                                     <input type="text" id="existingSheetId" placeholder="Paste spreadsheet ID here" style="margin-bottom: 8px;">
@@ -1872,7 +1779,7 @@
             if (!lastLoggedSet) return;
             
             // Actually delete the row from Google Sheets
-            if (spreadsheetId && sessionId) {
+            if (spreadsheetId && appToken) {
                 try {
                     setSyncStatus('syncing');
                     await apiCall(`/sheets/${spreadsheetId}/delete-row`, {

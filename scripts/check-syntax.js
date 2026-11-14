@@ -11,7 +11,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
-const BACKEND_FILES = ['server.js', 'summary.js', 'mcp.js', 'coros-mcp.js'];
+const BACKEND_FILES = ['server.js', 'summary.js', 'mcp.js', 'auth.js'];
 let failed = false;
 
 function check(label, file) {

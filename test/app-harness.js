@@ -57,11 +57,16 @@ function jsonResponse(body, status = 200) {
   return { ok: status < 400, status, statusText: status < 400 ? 'OK' : 'Error', json: async () => body };
 }
 
+const VALID_TOKEN = 'test-token';
+
 /**
- * Boot the app signed in, with the fake backend serving `rows` and `config`.
+ * Boot the app with the fake backend serving `rows` and `config`.
+ * By default the device already has a valid access code, so the app opens
+ * straight to the tracker. Pass `token: null` (no code stored) or a wrong
+ * code to land on the access-code screen instead.
  * Returns handles for interacting and for asserting nothing went wrong.
  */
-async function bootApp({ rows = sampleRows(), config = CONFIG } = {}) {
+async function bootApp({ rows = sampleRows(), config = CONFIG, token = VALID_TOKEN } = {}) {
   const alerts = [];
   const errors = [];
   const requests = [];
@@ -72,7 +77,7 @@ async function bootApp({ rows = sampleRows(), config = CONFIG } = {}) {
     runScripts: 'dangerously',
     pretendToBeVisual: true,
     beforeParse(window) {
-      window.localStorage.setItem('sessionId', 'test-session');
+      if (token) window.localStorage.setItem('appToken', token);
       window.localStorage.setItem('spreadsheetId', SHEET_ID);
       window.alert = (msg) => alerts.push(String(msg));
       window.confirm = () => true;
@@ -89,9 +94,11 @@ async function bootApp({ rows = sampleRows(), config = CONFIG } = {}) {
         const u = new URL(url);
         const method = (opts.method || 'GET').toUpperCase();
         const body = opts.body ? JSON.parse(opts.body) : undefined;
-        requests.push({ method, path: u.pathname, body });
+        const sentToken = (opts.headers || {})['X-App-Token'];
+        requests.push({ method, path: u.pathname, body, token: sentToken });
 
-        if (u.pathname === '/auth/check') return jsonResponse({ authenticated: true });
+        if (u.pathname === '/auth/check') return jsonResponse({ authenticated: sentToken === VALID_TOKEN });
+        if (sentToken !== VALID_TOKEN) return jsonResponse({ error: 'Not authenticated' }, 401);
         if (u.pathname === `/sheets/${SHEET_ID}/config`) return jsonResponse(config);
         if (u.pathname === `/sheets/${SHEET_ID}/data`) return jsonResponse({ workouts: sheetRows.slice() });
         if (u.pathname === `/sheets/${SHEET_ID}/entry` && method === 'POST') {
@@ -105,7 +112,11 @@ async function bootApp({ rows = sampleRows(), config = CONFIG } = {}) {
   });
 
   const { window } = dom;
-  await waitFor(() => window.document.querySelector('.tabs'), 'app to render after sign-in');
+  if (token === VALID_TOKEN) {
+    await waitFor(() => window.document.querySelector('.tabs'), 'app to render with a valid access code');
+  } else {
+    await waitFor(() => window.document.getElementById('accessCode'), 'access-code screen to render');
+  }
 
   const app = {
     window,
@@ -162,4 +173,4 @@ async function waitFor(fn, what, timeoutMs = 3000) {
 
 const flush = () => new Promise(r => setTimeout(r, 50));
 
-module.exports = { bootApp, sampleRows, CONFIG, waitFor, flush };
+module.exports = { bootApp, sampleRows, CONFIG, VALID_TOKEN, waitFor, flush };

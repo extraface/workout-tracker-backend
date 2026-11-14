@@ -199,3 +199,44 @@ describe('smoke test: logging sets', () => {
     expectHealthy(app);
   });
 });
+
+// ─── Access code (replaces Google sign-in) ───────────────────────────────────
+
+describe('access code', () => {
+  const { VALID_TOKEN, waitFor } = require('./app-harness');
+
+  test('every backend call carries the stored access code', async () => {
+    app = await bootApp();
+    await flush();
+    expect(app.requests.length).toBeGreaterThan(0);
+    expect(app.requests.every(r => r.token === VALID_TOKEN)).toBe(true);
+    expectHealthy(app);
+  });
+
+  test('a new device asks for the code once, then opens the tracker', async () => {
+    app = await bootApp({ token: null });
+    const doc = app.document;
+    expect(doc.body.textContent).not.toMatch(/didn't work/);
+    doc.getElementById('accessCode').value = VALID_TOKEN;
+    app.window.saveAccessCode();
+    await waitFor(() => doc.querySelector('.tabs'), 'tracker after entering the code');
+    expect(app.window.localStorage.getItem('appToken')).toBe(VALID_TOKEN);
+    expectHealthy(app);
+  });
+
+  test('a wrong code is rejected and not saved', async () => {
+    app = await bootApp({ token: null });
+    app.document.getElementById('accessCode').value = 'nope';
+    app.window.saveAccessCode();
+    await waitFor(() => /didn't work/.test(app.document.body.textContent), 'rejection message');
+    expect(app.window.localStorage.getItem('appToken')).toBeNull();
+  });
+
+  test('sign out forgets the code', async () => {
+    app = await bootApp();
+    await flush();
+    await app.window.logout();
+    expect(app.window.localStorage.getItem('appToken')).toBeNull();
+    expect(app.document.getElementById('accessCode')).not.toBeNull();
+  });
+});

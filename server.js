@@ -4,7 +4,7 @@ const cors = require('cors');
 const { google } = require('googleapis');
 const { registerRoutes: registerSummaryRoutes } = require('./summary');
 const { registerMcpRoutes } = require('./mcp');
-const { registerCorosMcpRoutes } = require('./coros-mcp');
+const { checkAppToken, getSheetsWriteAuth } = require('./auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,18 +12,6 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Store OAuth clients per user session (in production, use Redis or database)
-const userSessions = new Map();
-
-// Google OAuth2 configuration
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
-);
-
-const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 
 // Convert weight to kg for comparison
 function convertToKg(weight, unit) {
@@ -49,100 +37,21 @@ app.get('/', (req, res) => {
   res.json({ status: 'ok', message: 'Workout Tracker API' });
 });
 
-// Generate auth URL
-app.get('/auth/url', (req, res) => {
-  const authUrl = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: SCOPES,
-    prompt: 'consent'
-  });
-  res.json({ authUrl });
-});
-
-// Handle OAuth callback
-app.get('/auth/callback', async (req, res) => {
-  const { code } = req.query;
-  
-  try {
-    const { tokens } = await oauth2Client.getToken(code);
-    
-    // Generate a session ID
-    const sessionId = Math.random().toString(36).substring(7);
-    
-    // Store tokens
-    userSessions.set(sessionId, tokens);
-    
-    // Redirect back to app with session ID
-    res.redirect(`${process.env.FRONTEND_URL}?session=${sessionId}`);
-  } catch (error) {
-    console.error('Error getting tokens:', error);
-    res.redirect(`${process.env.FRONTEND_URL}?error=auth_failed`);
-  }
-});
-
-// Middleware to check authentication
+// Middleware to check authentication: the per-device access code must match
+// APP_TOKEN. Sheets calls then go through the backend's service account, so
+// there is no Google sign-in or server-side session to expire.
 const requireAuth = (req, res, next) => {
-  const sessionId = req.headers['x-session-id'];
-  
-  if (!sessionId || !userSessions.has(sessionId)) {
+  if (!checkAppToken(req.headers['x-app-token'])) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
-  
-  const tokens = userSessions.get(sessionId);
-  const client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-  );
-  client.setCredentials(tokens);
-  
-  req.googleAuth = client;
-  req.sessionId = sessionId;
+  const { auth, error } = getSheetsWriteAuth();
+  if (!auth) {
+    console.error('Sheets auth unavailable:', error);
+    return res.status(500).json({ error: 'Sheets access not configured', details: error });
+  }
+  req.googleAuth = auth;
   next();
 };
-
-// Create a new spreadsheet
-app.post('/sheets/create', requireAuth, async (req, res) => {
-  try {
-    const sheets = google.sheets({ version: 'v4', auth: req.googleAuth });
-    
-    const spreadsheet = await sheets.spreadsheets.create({
-      resource: {
-        properties: {
-          title: 'Workout Tracker Data'
-        },
-        sheets: [{
-          properties: {
-            title: 'Workouts',
-            gridProperties: {
-              frozenRowCount: 1
-            }
-          }
-        }]
-      }
-    });
-    
-    const spreadsheetId = spreadsheet.data.spreadsheetId;
-    
-    // Add headers
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: 'Workouts!A1:H1',
-      valueInputOption: 'RAW',
-      resource: {
-        values: [['Date', 'Workout', 'Exercise', 'Reps', 'Weight', 'Unit', 'Deload', 'Deleted']]
-      }
-    });
-    
-    res.json({ 
-      spreadsheetId,
-      url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
-    });
-  } catch (error) {
-    console.error('Error creating spreadsheet:', error);
-    res.status(500).json({ error: 'Failed to create spreadsheet' });
-  }
-});
 
 // Load data from spreadsheet
 app.get('/sheets/:spreadsheetId/data', requireAuth, async (req, res) => {
@@ -344,26 +253,9 @@ app.post('/chat', requireAuth, async (req, res) => {
   }
 });
 
-// Check session validity
+// Check whether this device's access code is valid
 app.get('/auth/check', (req, res) => {
-  const sessionId = req.headers['x-session-id'];
-  
-  if (!sessionId || !userSessions.has(sessionId)) {
-    return res.json({ authenticated: false });
-  }
-  
-  res.json({ authenticated: true });
-});
-
-// Logout
-app.post('/auth/logout', (req, res) => {
-  const sessionId = req.headers['x-session-id'];
-  
-  if (sessionId) {
-    userSessions.delete(sessionId);
-  }
-  
-  res.json({ success: true });
+  res.json({ authenticated: checkAppToken(req.headers['x-app-token']) });
 });
 
 // Load workout config from Config tab
@@ -540,9 +432,6 @@ registerSummaryRoutes(app);
 
 // MCP server for Claude connectors
 registerMcpRoutes(app);
-
-// Coros MCP server for running/activity data
-registerCorosMcpRoutes(app);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
