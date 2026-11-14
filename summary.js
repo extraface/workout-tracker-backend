@@ -667,6 +667,7 @@ function registerRoutes(app) {
       credentials: credentialsConfigured ? 'configured' : 'not_configured',
       spreadsheet: spreadsheetConfigured ? 'configured' : 'not_configured',
       api_key: apiKeyConfigured ? 'configured' : 'not_configured',
+      app_token: (process.env.APP_TOKEN || '').trim() ? 'configured' : 'not_configured',
       setup_needed: !credentialsConfigured
         ? 'Add GOOGLE_SERVICE_ACCOUNT_JSON to Railway environment variables'
         : null

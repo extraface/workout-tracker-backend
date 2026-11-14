@@ -384,6 +384,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 
 ## Version History
 
+**v2.18.1** (November 2026) - Ignore stray whitespace around the access code; `/summary/health` now reports whether `APP_TOKEN` is configured.
+
 **v2.18.0** (November 2026) - Replace Google sign-in with a one-time access code; the backend writes through its service account, so sessions no longer expire after deploys, restarts or a few days. Retire the custom Coros MCP (`/coros-mcp`) in favor of COROS's official connector. Remove "Create New Sheet".
 
 **v2.17.10** (October 2026) - Fix Reload from Sheet showing a false failure and Sync Error

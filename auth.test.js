@@ -15,6 +15,11 @@ describe('checkAppToken', () => {
     expect(checkAppToken(provided)).toBe(false);
   });
 
+  test('ignores whitespace picked up when pasting', () => {
+    process.env.APP_TOKEN = ' abc123\n';
+    expect(checkAppToken('abc123 ')).toBe(true);
+  });
+
   test('rejects everything when APP_TOKEN is not set', () => {
     delete process.env.APP_TOKEN;
     expect(checkAppToken('')).toBe(false);

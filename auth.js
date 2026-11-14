@@ -12,14 +12,15 @@ const { google } = require('googleapis');
 
 const SHEETS_SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
 
-/** True when `provided` matches APP_TOKEN. Timing-safe; false if unset. */
+/** True when `provided` matches APP_TOKEN (ignoring surrounding whitespace). Timing-safe; false if unset. */
 function checkAppToken(provided) {
-  const expected = process.env.APP_TOKEN;
-  if (!expected || typeof provided !== 'string' || provided.length === 0) {
+  // Trim both sides: a pasted value can pick up stray spaces or newlines
+  const expected = (process.env.APP_TOKEN || '').trim();
+  if (!expected || typeof provided !== 'string' || provided.trim().length === 0) {
     return false;
   }
-  const a = crypto.createHash('sha256').update(provided).digest();
-  const b = crypto.createHash('sha256').update(String(expected)).digest();
+  const a = crypto.createHash('sha256').update(provided.trim()).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
   return crypto.timingSafeEqual(a, b);
 }
 
