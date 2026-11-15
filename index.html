@@ -828,11 +828,22 @@
         ];
         
         // Exercises that need BOTH time and weight (like holding two kettlebells)
-        // Weight can be single ("12 kg") or doubled ("2x12 kg")
+        // Weight can be single ("12 kg"), doubled ("2x12 kg") or offset ("16+8 kg")
         const TIMED_WITH_WEIGHT_EXERCISES = [
             'Bottoms Up KB Holds',
-            'Suitcase Carry'
+            'Suitcase Carry',
+            'Offset Carry'
         ];
+
+        // Offset loads (different weight in each hand) are stored as the total in
+        // the Weight column and the split in the Unit column: 24 + "kg (16 kg + 8 kg)".
+        const OFFSET_UNIT_RE = /^(kg|lbs) \((\d+(?:\.\d+)?) \1 \+ (\d+(?:\.\d+)?) \1\)$/;
+
+        // "kg (16 kg + 8 kg)" → "16+8 kg" (how it's typed), or null if not an offset unit
+        function offsetInputText(unit) {
+            const m = String(unit || '').match(OFFSET_UNIT_RE);
+            return m ? `${m[2]}+${m[3]} ${m[1]}` : null;
+        }
 
         // Band colors recognized by the weight parser.
         // Sorted longest-first so "light blue" wins over "blue", "turquoise" over "red"-style partial hits.
@@ -1274,7 +1285,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.18.1</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.18.2</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1473,7 +1484,7 @@
                 const setBadge = setCount > 0 ? `<span class="set-badge">${setCount}/3</span>` : '';
                 
                 // Placeholder text and pre-fill value
-                let placeholder = isTimedWeight ? 'Weight (12 kg or 2x12)' : (isTimed ? 'Time (seconds)' : 'Weight (blank=BW)');
+                let placeholder = isTimedWeight ? 'Weight (12 kg, 2x12, 16+8)' : (isTimed ? 'Time (seconds)' : 'Weight (blank=BW)');
                 let prefillWeight = '';
                 let prefillReps = '';
                 if (todaySets.length > 0) {
@@ -1484,6 +1495,8 @@
                             // For doubled weight format (e.g., "2×8 kg"), use unit only
                             if (lastSet.unit.includes('×')) {
                                 prefillWeight = lastSet.unit;
+                            } else if (offsetInputText(lastSet.unit)) {
+                                prefillWeight = offsetInputText(lastSet.unit);
                             } else {
                                 prefillWeight = `${lastSet.weight} ${lastSet.unit}`;
                             }
@@ -1494,6 +1507,8 @@
                         // For doubled weight format (e.g., "2×25 lbs"), use unit only
                         if (lastSet.unit.includes('×')) {
                             prefillWeight = lastSet.unit;
+                        } else if (offsetInputText(lastSet.unit)) {
+                            prefillWeight = offsetInputText(lastSet.unit);
                         } else {
                             prefillWeight = `${lastSet.weight} ${lastSet.unit}`;
                         }
@@ -1648,6 +1663,20 @@
                 }
             }
             
+            // Handle offset load, a different weight in each hand: "16+8 kg", "16 kg + 8 kg", "16+8"
+            const offsetMatch = str.match(/^(\d+(?:\.\d+)?)\s*(lbs?|kgs?)?\s*\+\s*(\d+(?:\.\d+)?)\s*(lbs?|kgs?)?$/);
+            if (offsetMatch) {
+                const norm = u => !u ? null : (u.startsWith('kg') ? 'kg' : 'lbs');
+                const u1 = norm(offsetMatch[2]), u2 = norm(offsetMatch[4]);
+                if (!(u1 && u2 && u1 !== u2)) {
+                    const remembered = (exercise && sessionUnitMemory[exercise]) || '';
+                    const unit = u1 || u2 || (/kg/.test(remembered) ? 'kg' : (/lb/.test(remembered) ? 'lbs' : 'lbs'));
+                    const a = parseFloat(offsetMatch[1]), b = parseFloat(offsetMatch[3]);
+                    if (exercise) sessionUnitMemory[exercise] = unit;
+                    return { weight: Math.round((a + b) * 100) / 100, unit: `${unit} (${a} ${unit} + ${b} ${unit})` };
+                }
+            }
+
             // Handle doubled weight format: "2 x 25 lb" or "25 lb x 2" or "2x25" or "2×25" etc
             // Matches: NUMBER x NUMBER UNIT or NUMBER UNIT x NUMBER (with x or ×)
             const doubledMatch = str.match(/^(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(lbs?|kgs?|kg|lb)?$/) ||

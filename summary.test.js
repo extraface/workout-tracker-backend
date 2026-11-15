@@ -533,6 +533,7 @@ describe('timed exercises', () => {
   test('recognizes timed exercises, ignoring case, stars and parentheticals', () => {
     expect(isTimedExercise('Suitcase Carry')).toBe(true);
     expect(isTimedExercise('suitcase carry*')).toBe(true);
+    expect(isTimedExercise('Offset Carry')).toBe(true);
     expect(isTimedExercise('Rope Shoulder Stretch')).toBe(true);
     expect(isTimedExercise('Ab Isometrics')).toBe(true);
     expect(isTimedExercise('Bottoms Up KB Holds (8 kg)')).toBe(true);

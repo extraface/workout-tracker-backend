@@ -28,7 +28,7 @@ const NON_NUMERIC_UNITS = new Set(['BW', 'NA', 'bodyweight', 'n/a', 'seconds']);
 
 // Timed exercises: the Reps column holds seconds. Keep in sync with index.html.
 const TIMED_EXERCISES = ['Ab Isometrics', 'Ab Iso Work', 'Rope Shoulder Stretch'];
-const TIMED_WITH_WEIGHT_EXERCISES = ['Bottoms Up KB Holds', 'Suitcase Carry'];
+const TIMED_WITH_WEIGHT_EXERCISES = ['Bottoms Up KB Holds', 'Suitcase Carry', 'Offset Carry'];
 
 function normalizeExerciseName(name) {
   return String(name || '').replace(/\*/g, '').replace(/\s*\([^)]*\)/g, '').trim().toLowerCase();

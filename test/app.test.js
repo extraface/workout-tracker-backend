@@ -30,6 +30,10 @@ describe('parseWeight', () => {
     ['2x12 kg', 24, '2×12 kg'],
     ['2×12 kg', 24, '2×12 kg'],
     ['2 x 15 lb', 30, '2×15 lbs'],
+    ['16+8 kg', 24, 'kg (16 kg + 8 kg)'],
+    ['16 kg + 8 kg', 24, 'kg (16 kg + 8 kg)'],
+    ['16 + 8kg', 24, 'kg (16 kg + 8 kg)'],
+    ['35+20 lb', 55, 'lbs (35 lbs + 20 lbs)'],
     ['bw', 0, 'BW'],
     ['na', 0, 'NA'],
   ])('"%s" → %s %s', (input, weight, unit) => {
@@ -179,6 +183,21 @@ describe('smoke test: logging sets', () => {
     const card = app.document.getElementById(`logged-${app.cardIndex('Suitcase Carry')}`);
     expect(card.textContent).toMatch(/60s @ 2×12 kg/);
     expectHealthy(app);
+  });
+
+  test('offset carry load (16+8 kg) logs the total and the split', async () => {
+    const sent = await app.logSet('Suitcase Carry', 55, '16+8 kg');
+    expect(sent).toMatchObject({ reps: 55, weight: 24, unit: 'kg (16 kg + 8 kg)' });
+    await flush();
+    const idx = app.cardIndex('Suitcase Carry');
+    expect(app.document.getElementById(`logged-${idx}`).textContent).toMatch(/55s @ 24 kg \(16 kg \+ 8 kg\)/);
+    // The next set is pre-filled the way it was typed
+    expect(app.document.getElementById(`weight-${idx}`).value).toBe('16+8 kg');
+    expectHealthy(app);
+  });
+
+  test('Offset Carry is timed with weight', () => {
+    expect(app.window.isTimedWithWeight('Offset Carry')).toBe(true);
   });
 
   test('rope shoulder stretch is seconds only (weight box disabled)', async () => {

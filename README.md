@@ -80,6 +80,7 @@ Ab Iso Work
 | `8 kg` | 8 kg | For KB Holds - app doubles for display |
 | `2 x 25 lb` | 2×25 lbs | Doubled weight |
 | `25 lb x 2` | 2×25 lbs | Also works! |
+| `16+8 kg` | 24 kg (16 kg + 8 kg) | Offset load: a different weight in each hand. Logs the total and keeps the split. `16 kg + 8 kg` also works |
 
 ### Supported Band Colors
 About 50 colors, including Red, Orange, Yellow, Green, Blue, Purple, Black, White, Gray/Grey, Pink, Brown, Tan, Turquoise, Teal, Navy, Gold, Silver, Lime, Mint, Coral, Lavender, plus two-word shades like Light Blue, Dark Green and Hot Pink. Type the color (or "color band"); it saves as e.g. "Turquoise Band". The list lives in `BAND_COLORS` in `index.html`.
@@ -110,7 +111,8 @@ Standard reps + weight tracking. Most exercises.
 ### Timed + Weight Exercises
 - Bottoms Up KB Holds* - Enter seconds in reps field, weight per KB in weight field
 - Suitcase Carry - Enter seconds; weight as `12 kg` (one hand) or `2x12 kg` (both hands)
-- Display: "45s @ 2×8 kg", "60s @ 12 kg"
+- Offset Carry - Enter seconds; weight as `16+8 kg` (heavier hand + lighter hand). Tracked separately from Suitcase Carry: more total load, less anti-lean demand
+- Display: "45s @ 2×8 kg", "60s @ 12 kg", "55s @ 24 kg (16 kg + 8 kg)"
 
 ### Starred Exercises (Doubled Weight)
 Mark with `*` for two-dumbbell/two-kettlebell exercises. Input per-hand weight, app doubles for total and display.
@@ -383,6 +385,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 - `README.md` - This file
 
 ## Version History
+
+**v2.18.2** (November 2026) - Weight field accepts offset loads (`16+8 kg`), stored as the total plus the split. Add Offset Carry as a timed-with-weight exercise.
 
 **v2.18.1** (November 2026) - Ignore stray whitespace around the access code; `/summary/health` now reports whether `APP_TOKEN` is configured.
 
