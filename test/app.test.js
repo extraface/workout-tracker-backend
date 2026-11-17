@@ -30,6 +30,8 @@ describe('parseWeight', () => {
     ['2x12 kg', 24, '2×12 kg'],
     ['2×12 kg', 24, '2×12 kg'],
     ['2 x 15 lb', 30, '2×15 lbs'],
+    ['15 k', 15, 'kg'],
+    ['20 pounds', 20, 'lbs'],
     ['16+8 kg', 24, 'kg (16 kg + 8 kg)'],
     ['16 kg + 8 kg', 24, 'kg (16 kg + 8 kg)'],
     ['16 + 8kg', 24, 'kg (16 kg + 8 kg)'],
@@ -176,6 +178,27 @@ describe('smoke test: logging sets', () => {
     expectHealthy(app);
   });
 
+  test("replays Nov 17: 2x15 lbs, 2 x 20, undo, typo 2 x 20z, 2 x 20", async () => {
+    const ex = 'Flat bench press*';
+    expect(await app.logSet(ex, 10, '2x15 lbs')).toMatchObject({ weight: 30, unit: '2×15 lbs' });
+    expect(await app.logSet(ex, 10, '2 x 20')).toMatchObject({ weight: 40, unit: '2×20 lbs' });
+    await app.window.undoLastSet();
+    await flush();
+
+    // The typo is refused: no set is sent, the text stays for correcting
+    const idx = app.cardIndex(ex);
+    const before = app.requests.filter(r => r.path.endsWith('/entry')).length;
+    app.document.getElementById(`reps-${idx}`).value = '10';
+    app.document.getElementById(`weight-${idx}`).value = '2 x 20z';
+    await app.window.logSet(ex, idx);
+    await flush();
+    expect(app.requests.filter(r => r.path.endsWith('/entry')).length).toBe(before);
+    expect(app.alerts.some(m => /Can't read "2 x 20z"/.test(m))).toBe(true);
+    expect(app.document.getElementById(`weight-${idx}`).value).toBe('2 x 20z');
+
+    expect(await app.logSet(ex, 10, '2 x 20')).toMatchObject({ weight: 40, unit: '2×20 lbs' });
+  });
+
   test('suitcase carry, both hands, in seconds', async () => {
     const sent = await app.logSet('Suitcase Carry', 60, '2x12 kg');
     expect(sent).toMatchObject({ reps: 60, weight: 24, unit: '2×12 kg' });
@@ -194,6 +217,21 @@ describe('smoke test: logging sets', () => {
     // The next set is pre-filled the way it was typed
     expect(app.document.getElementById(`weight-${idx}`).value).toBe('16+8 kg');
     expectHealthy(app);
+  });
+
+  test('unreadable weight (typo "2 x 20z") is refused, not guessed', () => {
+    expect(app.window.parseWeight('2 x 20z', 'Test Exercise')).toMatchObject({ invalid: true });
+    expect(app.window.parseWeight('abc', 'Test Exercise')).toMatchObject({ invalid: true });
+  });
+
+  test('units do not pile up across doubled sets (2×15 lbs → 2 x 20 → 20)', () => {
+    const ex = 'Neutral Grip Bench Press';
+    expect(app.window.parseWeight('2x15 lbs', ex)).toEqual({ weight: 30, unit: '2×15 lbs' });
+    expect(app.window.parseWeight('2 x 20', ex)).toEqual({ weight: 40, unit: '2×20 lbs' });
+    expect(app.window.parseWeight('2 x 20', ex)).toEqual({ weight: 40, unit: '2×20 lbs' });
+    expect(app.window.parseWeight('20', ex)).toEqual({ weight: 20, unit: 'lbs' });
+    expect(app.window.parseWeight('2x12 kg', ex)).toEqual({ weight: 24, unit: '2×12 kg' });
+    expect(app.window.parseWeight('2x10', ex)).toEqual({ weight: 20, unit: '2×10 kg' });
   });
 
   test('Offset Carry is timed with weight', () => {

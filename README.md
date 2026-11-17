@@ -386,6 +386,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 
 ## Version History
 
+**v2.18.3** (November 2026) - Fix units piling up across doubled sets ("2×20 2×15 lbs"): only kg/lbs is remembered between sets. Unreadable weights (e.g. a typo like `2 x 20z`) are refused with a message instead of guessed. `15 k` and `20 pounds` are recognized.
+
 **v2.18.2** (November 2026) - Weight field accepts offset loads (`16+8 kg`), stored as the total plus the split. Add Offset Carry as a timed-with-weight exercise.
 
 **v2.18.1** (November 2026) - Ignore stray whitespace around the access code; `/summary/health` now reports whether `APP_TOKEN` is configured.
