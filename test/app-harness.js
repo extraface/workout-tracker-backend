@@ -71,6 +71,15 @@ async function bootApp({ rows = sampleRows(), config = CONFIG, token = VALID_TOK
   const errors = [];
   const requests = [];
   let sheetRows = rows.slice();
+  // Test controls for /entry: hold() makes saves wait until release(),
+  // failNext(n) makes the next n saves fail with a 500
+  const backend = {
+    gate: null, fails: 0,
+    hold() { let r; this.gate = new Promise(res => { r = res; }); this.gate.release = r; },
+    release() { const g = this.gate; this.gate = null; if (g) g.release(); },
+    failNext(n = 1) { this.fails = n; },
+    rows: () => sheetRows
+  };
 
   const dom = new JSDOM(HTML, {
     url: 'https://extraface.github.io/workout-tracker-backend/',
@@ -102,6 +111,8 @@ async function bootApp({ rows = sampleRows(), config = CONFIG, token = VALID_TOK
         if (u.pathname === `/sheets/${SHEET_ID}/config`) return jsonResponse(config);
         if (u.pathname === `/sheets/${SHEET_ID}/data`) return jsonResponse({ workouts: sheetRows.slice() });
         if (u.pathname === `/sheets/${SHEET_ID}/entry` && method === 'POST') {
+          if (backend.gate) await backend.gate;
+          if (backend.fails > 0) { backend.fails--; return jsonResponse({ error: 'boom' }, 500); }
           sheetRows.push({ ...body, weightKg: 0, deleted: '' });
           return jsonResponse({ success: true });
         }
@@ -122,6 +133,7 @@ async function bootApp({ rows = sampleRows(), config = CONFIG, token = VALID_TOK
     window,
     document: window.document,
     alerts,
+    backend,
     errors,
     requests,
     /** Read or set a top-level `let` in the app (e.g. workoutLog). */
@@ -153,6 +165,7 @@ async function bootApp({ rows = sampleRows(), config = CONFIG, token = VALID_TOK
         .find(b => (b.getAttribute('onclick') || '').startsWith(`logSet('${exercise.replace(/'/g, "\\'")}'`))
         .click();
       await waitFor(() => requests.slice(before).some(r => r.path.endsWith('/entry')), `set for ${exercise} to be sent`);
+      await waitFor(() => window.eval('savingExercises.size === 0'), `save for ${exercise} to finish`);
       return requests.slice(before).find(r => r.path.endsWith('/entry')).body;
     },
     syncText: () => (window.document.querySelector('.sync-status') || {}).textContent || '',

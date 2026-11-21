@@ -878,6 +878,50 @@
             return m || null;
         }
         let lastLoggedSet = null; // Track last set for undo
+
+        // Sets that are saving right now (one per exercise card), so repeat taps
+        // on a slow save can't log duplicates
+        const savingExercises = new Set();
+
+        // Sets that never reached the sheet (error or timeout). Kept on this device
+        // and retried; a set already in the sheet (same timestamp) is never re-sent.
+        let pendingSets = [];
+        try { pendingSets = JSON.parse(localStorage.getItem('pendingSets')) || []; } catch (e) { pendingSets = []; }
+        function savePendingSets() {
+            try { localStorage.setItem('pendingSets', JSON.stringify(pendingSets)); } catch (e) {}
+        }
+
+        // After loading the sheet: drop pending sets it already has, show the rest
+        // in the log, and re-send them
+        function reconcilePendingSets() {
+            const inSheet = new Set(workoutLog.map(e => `${e.date}|${e.exercise}`));
+            pendingSets = pendingSets.filter(p => !inSheet.has(`${p.date}|${p.exercise}`));
+            savePendingSets();
+            for (const p of pendingSets) workoutLog.push(p);
+            workoutLog.sort((a, b) => new Date(a.date) - new Date(b.date));
+            flushPendingSets();
+        }
+
+        let flushingPending = false;
+        async function flushPendingSets() {
+            if (flushingPending || pendingSets.length === 0 || !spreadsheetId || !appToken) return;
+            flushingPending = true;
+            try {
+                for (const p of [...pendingSets]) {
+                    try {
+                        await addEntry(p, true);
+                        pendingSets = pendingSets.filter(x => x !== p);
+                        savePendingSets();
+                    } catch (e) {
+                        break; // still failing; try again later
+                    }
+                }
+            } finally {
+                flushingPending = false;
+                setSyncStatus(pendingSets.length ? 'error' : 'synced');
+            }
+        }
+        window.addEventListener('online', () => flushPendingSets());
         
         // Convert weight to kg for comparison
         function convertToKg(weight, unit) {
@@ -1125,6 +1169,7 @@
                 setSyncStatus('syncing');
                 const result = await apiCall(`/sheets/${spreadsheetId}/data`);
                 workoutLog = result.workouts;
+                reconcilePendingSets();
                 saveToLocalStorage();
                 setSyncStatus('synced');
             } catch (error) {
@@ -1155,6 +1200,7 @@
                 // Load fresh workout data from sheet
                 const result = await apiCall(`/sheets/${spreadsheetId}/data`);
                 workoutLog = result.workouts;
+                reconcilePendingSets();
                 
                 // Save to localStorage
                 saveToLocalStorage();
@@ -1184,10 +1230,18 @@
             
             try {
                 setSyncStatus('syncing');
-                await apiCall(`/sheets/${spreadsheetId}/entry`, {
-                    method: 'POST',
-                    body: JSON.stringify(entry)
-                });
+                // Give up waiting after 20s; the set is then kept as pending
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 20000);
+                try {
+                    await apiCall(`/sheets/${spreadsheetId}/entry`, {
+                        method: 'POST',
+                        body: JSON.stringify(entry),
+                        signal: controller.signal
+                    });
+                } finally {
+                    clearTimeout(timer);
+                }
                 setSyncStatus('synced');
             } catch (error) {
                 setSyncStatus('error');
@@ -1251,6 +1305,9 @@
             if (status === 'syncing') {
                 syncDot.classList.add('syncing');
                 syncText.innerHTML = '<div class="sync-dot syncing"></div>Syncing...';
+            } else if (pendingSets.length) {
+                syncDot.classList.add('error');
+                syncText.innerHTML = `<div class="sync-dot error"></div>${pendingSets.length} not synced`;
             } else if (status === 'error') {
                 syncDot.classList.add('error');
                 syncText.innerHTML = '<div class="sync-dot error"></div>Sync Error';
@@ -1295,7 +1352,7 @@
                 <div class="container">
                     <div class="header">
                         <div class="header-top">
-                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.18.3</span></h1>
+                            <h1>💪 Workout Tracker <span style="font-size: 12px; opacity: 0.6; font-weight: 400;">v2.18.4</span></h1>
                             <div class="sync-status">
                                 <div class="sync-dot"></div>
                                 Synced
@@ -1549,7 +1606,7 @@
                                 <span id="preview-${idx}" class="weight-preview"></span>
                                 <input type="text" id="weight-${idx}" placeholder="${placeholder}" value="${prefillWeight}" onfocus="this.select()" ${weightDisabled ? 'disabled style="opacity: 0.5;"' : `oninput="updateWeightPreview(${idx}, '${exercise.replace(/'/g, "\\'")}')"`}/>
                             </div>
-                            <button onclick="logSet('${exercise.replace(/'/g, "\\'")}', ${idx})">Log</button>
+                            <button onclick="logSet('${exercise.replace(/'/g, "\\'")}', ${idx})" ${savingExercises.has(exercise) ? 'disabled style="opacity: 0.6;"' : ''}>${savingExercises.has(exercise) ? 'Saving…' : 'Log'}</button>
                         </div>
                         ${lastLoggedSet && lastLoggedSet.data.exercise === exercise ? `
                             <button class="undo-inline" onclick="undoLastSet()">
@@ -1805,9 +1862,18 @@
 
         async function undoLastSet() {
             if (!lastLoggedSet) return;
-            
-            // Actually delete the row from Google Sheets
-            if (spreadsheetId && appToken) {
+            if (savingExercises.has(lastLoggedSet.data.exercise)) {
+                alert('Wait for the set to finish saving, then undo.');
+                return;
+            }
+
+            const pendingIdx = pendingSets.findIndex(p => p.date === lastLoggedSet.data.date && p.exercise === lastLoggedSet.data.exercise);
+            if (pendingIdx !== -1) {
+                // Never reached the sheet: just forget it
+                pendingSets.splice(pendingIdx, 1);
+                savePendingSets();
+            } else if (spreadsheetId && appToken) {
+                // Actually delete the row from Google Sheets
                 try {
                     setSyncStatus('syncing');
                     await apiCall(`/sheets/${spreadsheetId}/delete-row`, {
@@ -1823,7 +1889,9 @@
             }
             
             // Remove the set from the log
-            workoutLog.splice(lastLoggedSet.index, 1);
+            const u = lastLoggedSet.data;
+            const logIdx = workoutLog.findIndex(e => e === u || (e.date === u.date && e.exercise === u.exercise));
+            if (logIdx !== -1) workoutLog.splice(logIdx, 1);
             
             saveToLocalStorage();
             
@@ -1836,6 +1904,8 @@
         }
 
         async function logSet(exercise, idx) {
+            // A save for this exercise is still in progress: ignore repeat taps
+            if (savingExercises.has(exercise)) return;
             const isTimed = isTimedExercise(exercise);
             const isTimedWeight = isTimedWithWeight(exercise);
             const repsInput = document.getElementById(`reps-${idx}`);
@@ -1877,11 +1947,25 @@
             };
             
             saveToLocalStorage();
-            await addEntry(setData);
-            
-            // Re-render exercises to update placeholders and highlighting
+
+            // Show the set right away, with the Log button disabled while it saves
+            savingExercises.add(exercise);
             renderExercises();
             updateHeaderStats();
+
+            try {
+                await addEntry(setData, true);
+                flushPendingSets(); // the connection works: send anything left over
+            } catch (error) {
+                pendingSets.push(setData);
+                savePendingSets();
+                alert("That set didn't reach the sheet yet. It's saved on this device and will be sent automatically.");
+            } finally {
+                savingExercises.delete(exercise);
+                setSyncStatus(syncStatus);
+                renderExercises();
+                updateHeaderStats();
+            }
         }
 
         function getLastSetsForExercise(exercise) {

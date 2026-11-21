@@ -386,6 +386,8 @@ May be phantom sets from old undo bug. Add "Yes" to column H for those rows in G
 
 ## Version History
 
+**v2.18.4** (November 2026) - Slow saves: a logged set shows right away, the Log button reads "Saving…" and ignores repeat taps until the save finishes (no more duplicates). A save that fails or takes over 20s is kept on the device as "N not synced" and re-sent automatically; a set the sheet already has (same timestamp) is never sent twice.
+
 **v2.18.3** (November 2026) - Fix units piling up across doubled sets ("2×20 2×15 lbs"): only kg/lbs is remembered between sets. Unreadable weights (e.g. a typo like `2 x 20z`) are refused with a message instead of guessed. `15 k` and `20 pounds` are recognized.
 
 **v2.18.2** (November 2026) - Weight field accepts offset loads (`16+8 kg`), stored as the total plus the split. Add Offset Carry as a timed-with-weight exercise.

@@ -297,3 +297,92 @@ describe('access code', () => {
     expect(app.document.getElementById('accessCode')).not.toBeNull();
   });
 });
+
+
+// ─── Slow or failed saves (v2.18.4) ──────────────────────────────────────────
+
+describe('slow or failed saves', () => {
+  beforeEach(async () => {
+    app = await bootApp();
+    app.selectWorkout('A');
+    await flush();
+  });
+
+  const entries = () => app.requests.filter(r => r.path.endsWith('/entry'));
+  function tapLog(ex, reps, weight) {
+    const idx = app.cardIndex(ex);
+    app.document.getElementById(`reps-${idx}`).value = String(reps);
+    app.document.getElementById(`weight-${idx}`).value = weight;
+    return app.window.logSet(ex, idx);
+  }
+
+  test('repeat taps during a slow save log only one set', async () => {
+    const ex = 'Goblet Squats';
+    app.backend.hold();
+    const before = entries().length;
+    const first = tapLog(ex, 8, '2x20 lbs');
+    await flush();
+    const idx = app.cardIndex(ex);
+    // Shown right away, button disabled while saving
+    expect(app.document.getElementById(`logged-${idx}`).textContent).toMatch(/2×20 lbs/);
+    const btn = [...app.document.querySelectorAll('button')].find(b => (b.getAttribute('onclick') || '').startsWith(`logSet('${ex}'`));
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent).toBe('Saving…');
+    await tapLog(ex, 8, '2x20 lbs');
+    await tapLog(ex, 8, '2x20 lbs');
+    app.backend.release();
+    await first;
+    await flush();
+    expect(entries().length - before).toBe(1);
+    expect(app.backend.rows().filter(r => r.exercise === ex && r.reps === 8).length).toBe(1);
+    const btnAfter = [...app.document.querySelectorAll('button')].find(b => (b.getAttribute('onclick') || '').startsWith(`logSet('${ex}'`));
+    expect(btnAfter.disabled).toBe(false);
+    expectHealthy(app);
+  });
+
+  test('a failed save is kept on the device and re-sent, once', async () => {
+    const ex = 'Goblet Squats';
+    app.backend.failNext(1);
+    await tapLog(ex, 9, '24 kg');
+    await flush();
+    expect(app.alerts.some(m => /didn't reach the sheet/.test(m))).toBe(true);
+    expect(app.syncText()).toMatch(/1 not synced/);
+    expect(JSON.parse(app.window.localStorage.getItem('pendingSets')).length).toBe(1);
+    expect(app.backend.rows().some(r => r.exercise === ex && r.reps === 9)).toBe(false);
+
+    // Next successful save sends the leftover too
+    await tapLog(ex, 11, '24 kg');
+    await flush(); await flush();
+    expect(app.backend.rows().filter(r => r.exercise === ex && r.reps === 9).length).toBe(1);
+    expect(app.backend.rows().filter(r => r.exercise === ex && r.reps === 11).length).toBe(1);
+    expect(JSON.parse(app.window.localStorage.getItem('pendingSets'))).toEqual([]);
+    expect(app.syncText()).toMatch(/Synced/);
+  });
+
+  test('a pending set already in the sheet is not sent again', async () => {
+    const ex = 'Goblet Squats';
+    app.backend.failNext(1);
+    await tapLog(ex, 7, '24 kg');
+    await flush();
+    const pending = JSON.parse(app.window.localStorage.getItem('pendingSets'))[0];
+    // Simulate a timeout where the server wrote the row anyway
+    app.backend.rows().push({ ...pending, deleted: '' });
+    const before = entries().length;
+    await app.window.loadFromSheet();
+    await flush();
+    expect(entries().length).toBe(before);
+    expect(app.backend.rows().filter(r => r.exercise === ex && r.reps === 7).length).toBe(1);
+    expect(JSON.parse(app.window.localStorage.getItem('pendingSets'))).toEqual([]);
+  });
+
+  test('undoing a set that never reached the sheet just drops it', async () => {
+    const ex = 'Goblet Squats';
+    app.backend.failNext(1);
+    await tapLog(ex, 6, '24 kg');
+    await flush();
+    await app.window.undoLastSet();
+    await flush();
+    expect(JSON.parse(app.window.localStorage.getItem('pendingSets'))).toEqual([]);
+    expect(app.requests.some(r => r.path.endsWith('/delete-row'))).toBe(false);
+  });
+});
